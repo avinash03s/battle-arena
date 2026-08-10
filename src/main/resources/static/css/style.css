@@ -164,9 +164,6 @@ html, body {
   pointer-events: none;
 }
 
-/* Health bar: sits BELOW the minimap on the top-left side.
-   Minimap starts at top:70px and is 150px tall (mmY=70, mmSize=150 in game.js),
-   so health starts after that, with a 12px gap. */
 .hud-top-left {
   position: absolute;
   top: calc(env(safe-area-inset-top, 12px) + 70px + 150px + 12px);

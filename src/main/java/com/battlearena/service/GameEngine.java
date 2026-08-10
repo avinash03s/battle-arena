@@ -1,13 +1,16 @@
 package com.battlearena.service;
 
-import com.battlearena.model.*;
+import com.battlearena.model.Decoration;
+import com.battlearena.model.Player;
+import com.battlearena.model.PlayerInput;
+import com.battlearena.model.Room;
+import com.battlearena.model.Wall;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.util.List;
 
 public interface GameEngine {
-
-    Room findOrCreateRoom();
+    Room findOrCreateRoom(int requestedSize);
 
     List<Wall> getWallsForRoom(Room room);
 

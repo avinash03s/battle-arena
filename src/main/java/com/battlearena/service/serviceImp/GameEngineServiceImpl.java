@@ -1,8 +1,6 @@
 package com.battlearena.service.serviceImp;
 
-import com.battlearena.maps.ArenaMapOne;
 import com.battlearena.maps.ArenaMapThree;
-import com.battlearena.maps.ArenaMapTwo;
 import com.battlearena.model.*;
 import com.battlearena.service.GameEngine;
 import com.battlearena.maps.MapProvider;
@@ -38,15 +36,12 @@ public class GameEngineServiceImpl implements GameEngine {
     private static final int BULLET_DAMAGE = 12;
     private static final double BULLET_RADIUS = 4;
     private static final long FIRE_COOLDOWN_MS = 220;
-    private static final int MIN_PLAYERS_TO_START = 2;
-    private static final int MAX_PLAYERS_PER_ROOM = 4;
     private static final int COUNTDOWN_SECONDS = 3;
 
+    private static final String[] CHARACTER_TYPES = {"penguin", "bear"};
 
     private final List<MapProvider> availableMaps = Arrays.asList(
-//            new ArenaMapOne(MAP_WIDTH, MAP_HEIGHT, WALL_THICKNESS),
-//            new ArenaMapTwo(MAP_WIDTH, MAP_HEIGHT, WALL_THICKNESS)
-            new ArenaMapThree(MAP_WIDTH,MAP_HEIGHT,WALL_THICKNESS)
+            new ArenaMapThree(MAP_WIDTH, MAP_HEIGHT, WALL_THICKNESS)
     );
 
     private final RoomRepository roomRepository;
@@ -60,13 +55,13 @@ public class GameEngineServiceImpl implements GameEngine {
     }
 
     @Override
-    public Room findOrCreateRoom() {
-        Room room = roomRepository.findAvailableRoom();
+    public Room findOrCreateRoom(int requestedSize) {
+        Room room = roomRepository.findAvailableRoom(requestedSize);
         if (room != null) {
             return room;
         }
         MapProvider chosenMap = availableMaps.get(random.nextInt(availableMaps.size()));
-        return roomRepository.createRoom(chosenMap);
+        return roomRepository.createRoom(chosenMap, requestedSize);
     }
 
     @Override
@@ -95,6 +90,7 @@ public class GameEngineServiceImpl implements GameEngine {
 
         Player player = new Player(session.getId(), name, spawn[0], spawn[1], color);
         player.setSession(session);
+//        player.setCharacterType(CHARACTER_TYPES[random.nextInt(CHARACTER_TYPES.length)]);
 
         room.getPlayers().put(session.getId(), player);
         roomRepository.linkSessionToRoom(session.getId(), room.getId());
@@ -124,13 +120,15 @@ public class GameEngineServiceImpl implements GameEngine {
         return roomRepository.getBySessionId(sessionId);
     }
 
-    // 4 fixed spawn corners, border se thoda andar taaki wall ke andar spawn na ho
+    // 6 fixed spawn points, border se thoda andar taaki wall ke andar spawn na ho
     private double[] spawnPoint(int index) {
         double[][] spawns = {
                 {150, 150},
                 {MAP_WIDTH - 150, 150},
                 {150, MAP_HEIGHT - 150},
-                {MAP_WIDTH - 150, MAP_HEIGHT - 150}
+                {MAP_WIDTH - 150, MAP_HEIGHT - 150},
+                {MAP_WIDTH / 2, 150},
+                {MAP_WIDTH / 2, MAP_HEIGHT - 150}
         };
         return spawns[index % spawns.length];
     }
@@ -152,10 +150,10 @@ public class GameEngineServiceImpl implements GameEngine {
 
         long now = System.currentTimeMillis();
         if (now - p.getLastShot() < FIRE_COOLDOWN_MS) return;
-        if (p.getAmmo() <= 0) return;
+//        if (p.getAmmo() <= 0) return;
 
         p.setLastShot(now);
-        p.setAmmo(p.getAmmo() - 1);
+//        p.setAmmo(p.getAmmo() - 1);
 
         double bx = p.getX() + Math.cos(p.getAngle()) * (PLAYER_RADIUS + 6);
         double by = p.getY() + Math.sin(p.getAngle()) * (PLAYER_RADIUS + 6);
@@ -173,23 +171,19 @@ public class GameEngineServiceImpl implements GameEngine {
         if (p.getAmmo() == 20 || p.getReserveAmmo() <= 0) return;
 
         p.setReloading(true);
-        countdownExecutor.schedule(new Runnable() {
-            @Override
-            public void run() {
-                if (!room.getPlayers().containsKey(sessionId)) return;
-                int needed = 20 - p.getAmmo();
-                int take = Math.min(needed, p.getReserveAmmo());
-                p.setAmmo(p.getAmmo() + take);
-                p.setReserveAmmo(p.getReserveAmmo() - take);
-                p.setReloading(false);
-            }
+        countdownExecutor.schedule(() -> {
+            if (!room.getPlayers().containsKey(sessionId)) return;
+            int needed = 20 - p.getAmmo();
+            int take = Math.min(needed, p.getReserveAmmo());
+            p.setAmmo(p.getAmmo() + take);
+            p.setReserveAmmo(p.getReserveAmmo() - take);
+            p.setReloading(false);
         }, 1200, TimeUnit.MILLISECONDS);
     }
 
-    // Jab kaafi players aa jaye to 3-2-1 countdown chalu karo
     private void maybeStartCountdown(final Room room) {
         if (room.getState() != Room.State.WAITING) return;
-        if (room.getPlayers().size() < MIN_PLAYERS_TO_START) return;
+        if (room.getPlayers().size() < room.getMaxPlayers()) return;
 
         room.setState(Room.State.COUNTDOWN);
         room.setCountdownValue(COUNTDOWN_SECONDS);
@@ -215,7 +209,7 @@ public class GameEngineServiceImpl implements GameEngine {
     private void startGame(Room room) {
         room.setState(Room.State.PLAYING);
         room.setStartTime(System.currentTimeMillis());
-        Map<String, Object> payload = new HashMap<String, Object>();
+        Map<String, Object> payload = new HashMap<>();
         payload.put("startTime", room.getStartTime());
         broadcast(room, "gameStart", payload);
     }
@@ -262,7 +256,7 @@ public class GameEngineServiceImpl implements GameEngine {
 
     private void moveBullets(Room room) {
         List<Wall> walls = getWallsForRoom(room);
-        List<Bullet> remaining = new ArrayList<Bullet>();
+        List<Bullet> remaining = new ArrayList<>();
 
         for (Bullet b : room.getBullets()) {
             double prevX = b.getX();
@@ -299,7 +293,7 @@ public class GameEngineServiceImpl implements GameEngine {
                                 shooter.setKills(shooter.getKills() + 1);
                             }
 
-                            Map<String, Object> payload = new HashMap<String, Object>();
+                            Map<String, Object> payload = new HashMap<>();
                             payload.put("id", p.getId());
                             payload.put("name", p.getName());
                             payload.put("by", shooter != null ? shooter.getName() : "Unknown");
@@ -331,7 +325,6 @@ public class GameEngineServiceImpl implements GameEngine {
         return false;
     }
 
-    // Standard rectangle-vs-circle collision formula
     private boolean rectCircleColliding(double cx, double cy, double r, Wall rect) {
         double distX = Math.abs(cx - rect.getX() - rect.getW() / 2);
         double distY = Math.abs(cy - rect.getY() - rect.getH() / 2);
@@ -367,14 +360,14 @@ public class GameEngineServiceImpl implements GameEngine {
     private void checkWinner(Room room) {
         if (room.getState() != Room.State.PLAYING) return;
 
-        List<Player> alive = new ArrayList<Player>();
+        List<Player> alive = new ArrayList<>();
         for (Player p : room.getPlayers().values()) {
             if (p.isAlive()) {
                 alive.add(p);
             }
         }
 
-        if (alive.size() <= 1 && room.getPlayers().size() >= MIN_PLAYERS_TO_START) {
+        if (alive.size() <= 1 && room.getPlayers().size() >= 2) {
             room.setState(Room.State.ENDED);
 
             Player winner = alive.isEmpty() ? null : alive.get(0);
@@ -411,15 +404,16 @@ public class GameEngineServiceImpl implements GameEngine {
             m.put("id", p.getId());
             m.put("name", p.getName());
             m.put("color", p.getColor());
+//            m.put("characterType", p.getCharacterType());
             playersInfo.add(m);
         }
 
-        Map<String, Object> payload = new HashMap<String, Object>();
+        Map<String, Object> payload = new HashMap<>();
         payload.put("roomId", room.getId());
         payload.put("players", playersInfo);
         payload.put("state", room.getState().toString().toLowerCase());
-        payload.put("minPlayers", MIN_PLAYERS_TO_START);
-        payload.put("maxPlayers", MAX_PLAYERS_PER_ROOM);
+        payload.put("minPlayers", room.getMaxPlayers());
+        payload.put("maxPlayers", room.getMaxPlayers());
 
         broadcast(room, "roomUpdate", payload);
     }
@@ -427,11 +421,10 @@ public class GameEngineServiceImpl implements GameEngine {
     private void broadcastState(Room room) {
         List<Map<String, Object>> playersInfo = new ArrayList<>();
         for (Player p : room.getPlayers().values()) {
-            final Map<String, Object> m = getStringObjectMap(p);
-            playersInfo.add(m);
+            playersInfo.add(getStringObjectMap(p));
         }
 
-        List<Map<String, Object>> bulletsInfo = new ArrayList<Map<String, Object>>();
+        List<Map<String, Object>> bulletsInfo = new ArrayList<>();
         for (Bullet b : room.getBullets()) {
             Map<String, Object> m = new HashMap<>();
             m.put("x", b.getX());
@@ -439,7 +432,7 @@ public class GameEngineServiceImpl implements GameEngine {
             bulletsInfo.add(m);
         }
 
-        Map<String, Object> payload = new HashMap<String, Object>();
+        Map<String, Object> payload = new HashMap<>();
         payload.put("players", playersInfo);
         payload.put("bullets", bulletsInfo);
         payload.put("elapsed", System.currentTimeMillis() - room.getStartTime());
@@ -461,12 +454,13 @@ public class GameEngineServiceImpl implements GameEngine {
         m.put("reserveAmmo", p.getReserveAmmo());
         m.put("reloading", p.isReloading());
         m.put("color", p.getColor());
+//        m.put("characterType", p.getCharacterType());
         return m;
     }
 
     @Override
     public void broadcast(Room room, String type, Object data) {
-        Map<String, Object> envelope = new HashMap<String, Object>();
+        Map<String, Object> envelope = new HashMap<>();
         envelope.put("type", type);
         envelope.put("data", data);
         try {
@@ -487,7 +481,7 @@ public class GameEngineServiceImpl implements GameEngine {
 
     @Override
     public void sendTo(WebSocketSession session, String type, Object data) {
-        Map<String, Object> envelope = new HashMap<String, Object>();
+        Map<String, Object> envelope = new HashMap<>();
         envelope.put("type", type);
         envelope.put("data", data);
         try {

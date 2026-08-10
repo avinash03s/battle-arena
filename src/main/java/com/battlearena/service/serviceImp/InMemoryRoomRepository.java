@@ -16,28 +16,28 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class InMemoryRoomRepository implements RoomRepository {
 
-    private static final int MAX_PLAYERS_PER_ROOM = 4;
-
     private final Map<String, Room> rooms = new ConcurrentHashMap<>();
     private final Map<String, String> sessionToRoom = new ConcurrentHashMap<>();
     private final Map<String, List<Wall>> roomWalls = new ConcurrentHashMap<>();
     private final Map<String, List<Decoration>> roomDecorations = new ConcurrentHashMap<>();
 
     @Override
-    public synchronized Room findAvailableRoom() {
+    public synchronized Room findAvailableRoom(int requestedSize) {
         for (Room r : rooms.values()) {
-            if (r.getState() == Room.State.WAITING && r.getPlayers().size() < MAX_PLAYERS_PER_ROOM) {
+            if (r.getState() == Room.State.WAITING
+                    && r.getMaxPlayers() == requestedSize
+                    && r.getPlayers().size() < requestedSize) {
                 return r;
             }
         }
         return null;
     }
 
-
     @Override
-    public synchronized Room createRoom(MapProvider mapProvider) {
+    public synchronized Room createRoom(MapProvider mapProvider, int maxPlayers) {
         String id = "room-" + UUID.randomUUID().toString().substring(0, 6);
         Room room = new Room(id);
+        room.setMaxPlayers(maxPlayers);
         rooms.put(id, room);
         roomWalls.put(id, mapProvider.getWalls());
         roomDecorations.put(id, mapProvider.getDecorations());
@@ -86,6 +86,6 @@ public class InMemoryRoomRepository implements RoomRepository {
 
     @Override
     public List<Room> getAllRooms() {
-        return new ArrayList<Room>(rooms.values());
+        return new ArrayList<>(rooms.values());
     }
 }

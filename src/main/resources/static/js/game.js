@@ -57,9 +57,17 @@ document.querySelectorAll('[data-back]').forEach(el => {
   el.addEventListener('click', () => showScreen(el.dataset.back));
 });
 
-document.getElementById('btn-play').addEventListener('click', () => showScreen('screen-name'));
+document.getElementById('btn-play').addEventListener('click', () => showScreen('screen-room-size'));
 document.getElementById('btn-howto').addEventListener('click', () => showScreen('screen-howto'));
 document.getElementById('btn-settings').addEventListener('click', () => showScreen('screen-settings'));
+
+let selectedRoomSize = 4;
+document.querySelectorAll('.room-size-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectedRoomSize = parseInt(btn.dataset.size, 10);
+    showScreen('screen-name');
+  });
+});
 
 document.getElementById('btn-join').addEventListener('click', joinGame);
 document.getElementById('input-name').addEventListener('keydown', (e) => {
@@ -77,7 +85,7 @@ function joinGame() {
   playerName = input.value.trim() || 'Player' + Math.floor(Math.random() * 1000);
   showScreen('screen-waiting');
   document.getElementById('waiting-title').textContent = 'FINDING PLAYERS...';
-  send('joinGame', { name: playerName });
+  send('joinGame', { name: playerName, roomSize: selectedRoomSize });
 }
 
 let selfId = null;
@@ -370,7 +378,7 @@ function renderLoop() {
   drawDecorations();
 
   mapInfo.walls.forEach(w => {
-      if (w.type !== 'building' && w.type !== 'crate' && w.type !== 'border') return;
+    if (w.type !== 'building' && w.type !== 'crate' && w.type !== 'border') return;
     const pos = worldToScreen(w.x, w.y);
     drawWorldWall(pos.x, pos.y, w.w, w.h, w.type);
   });
@@ -386,7 +394,7 @@ function renderLoop() {
   latestState.players.forEach(p => {
     if (!p.alive) return;
     const pos = worldToScreen(p.x, p.y);
-    drawCharacter(pos.x, pos.y, p.angle, p.id === selfId, p.health);
+    drawCharacter(pos.x, pos.y, p.angle, p.characterType, p.health);
 
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 13px sans-serif';
@@ -411,11 +419,9 @@ function renderLoop() {
 }
 
 function drawBackground() {
-  // base grass green
   ctx.fillStyle = '#4a8c3f';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // grass texture - alternating shade patches
   const tile = 80;
   const startCol = Math.floor(camX / tile);
   const startRow = Math.floor(camY / tile);
@@ -439,7 +445,6 @@ function drawBackground() {
     }
   }
 
-  // small grass blade details, pseudo-random but stable per tile
   ctx.strokeStyle = 'rgba(30, 80, 25, 0.35)';
   ctx.lineWidth = 2;
   for (let r = 0; r < rows; r++) {
@@ -478,10 +483,8 @@ function drawDecorations() {
 }
 
 function drawTree(x, y) {
-  // trunk
   ctx.fillStyle = '#6b4423';
   ctx.fillRect(x - 6, y - 10, 12, 30);
-  // leaves (layered circles for a fuller look)
   ctx.fillStyle = '#2d6a3e';
   ctx.beginPath();
   ctx.arc(x, y - 30, 26, 0, Math.PI * 2);
@@ -514,29 +517,25 @@ function drawGrassPatch(x, y) {
   ctx.fill();
 }
 
-//CHARACTERS Penguin = you, Bear = others
-
-function drawCharacter(x, y, angle, isSelf, health) {
+function drawCharacter(x, y, angle, characterType, health) {
   ctx.save();
   ctx.translate(x, y);
 
-  // shadow on ground
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.beginPath();
   ctx.ellipse(0, 20, 18, 7, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  if (isSelf) {
-    drawPenguin(angle);
-  } else {
+  if (characterType === 'bear') {
     drawBear(angle);
+  } else {
+    drawPenguin(angle);
   }
 
   ctx.restore();
 }
 
 function drawPenguin(angle) {
-  // aim direction indicator
   ctx.save();
   ctx.rotate(angle);
   ctx.strokeStyle = 'rgba(255,255,255,0.4)';
@@ -547,19 +546,16 @@ function drawPenguin(angle) {
   ctx.stroke();
   ctx.restore();
 
-  // body
   ctx.fillStyle = '#1c2530';
   ctx.beginPath();
   ctx.ellipse(0, 2, 16, 20, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // white belly
   ctx.fillStyle = '#f4f6f8';
   ctx.beginPath();
   ctx.ellipse(0, 6, 10, 14, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // wings
   const flap = Math.sin(angle * 2) * 0.1;
   ctx.fillStyle = '#1c2530';
   ctx.beginPath();
@@ -569,13 +565,11 @@ function drawPenguin(angle) {
   ctx.ellipse(14, 4 - flap * 10, 6, 12, 0.3, 0, Math.PI * 2);
   ctx.fill();
 
-  // head
   ctx.fillStyle = '#1c2530';
   ctx.beginPath();
   ctx.arc(0, -14, 11, 0, Math.PI * 2);
   ctx.fill();
 
-  // face patch (direction facing)
   const fx = Math.cos(angle) * 4;
   const fy = Math.sin(angle) * 4;
   ctx.fillStyle = '#f4f6f8';
@@ -583,7 +577,6 @@ function drawPenguin(angle) {
   ctx.ellipse(fx, -14 + fy * 0.3, 7, 8, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // beak
   ctx.fillStyle = '#ffa733';
   ctx.save();
   ctx.translate(0, -14);
@@ -596,14 +589,12 @@ function drawPenguin(angle) {
   ctx.fill();
   ctx.restore();
 
-  // eyes
   ctx.fillStyle = '#000';
   ctx.beginPath();
   ctx.arc(-3, -17, 1.6, 0, Math.PI * 2);
   ctx.arc(3, -17, 1.6, 0, Math.PI * 2);
   ctx.fill();
 
-  // feet
   ctx.fillStyle = '#ffa733';
   ctx.beginPath();
   ctx.ellipse(-6, 20, 5, 3, 0, 0, Math.PI * 2);
@@ -612,7 +603,6 @@ function drawPenguin(angle) {
 }
 
 function drawBear(angle) {
-  // aim direction indicator
   ctx.save();
   ctx.rotate(angle);
   ctx.strokeStyle = 'rgba(255,80,80,0.4)';
@@ -623,26 +613,22 @@ function drawBear(angle) {
   ctx.stroke();
   ctx.restore();
 
-  // body
   ctx.fillStyle = '#7a5233';
   ctx.beginPath();
   ctx.ellipse(0, 4, 17, 19, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // belly
   ctx.fillStyle = '#c99b6f';
   ctx.beginPath();
   ctx.ellipse(0, 8, 9, 12, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // arms
   ctx.fillStyle = '#7a5233';
   ctx.beginPath();
   ctx.ellipse(-15, 6, 6, 11, -0.2, 0, Math.PI * 2);
   ctx.ellipse(15, 6, 6, 11, 0.2, 0, Math.PI * 2);
   ctx.fill();
 
-  // ears
   ctx.fillStyle = '#7a5233';
   ctx.beginPath();
   ctx.arc(-8, -20, 5, 0, Math.PI * 2);
@@ -654,13 +640,11 @@ function drawBear(angle) {
   ctx.arc(8, -20, 2.5, 0, Math.PI * 2);
   ctx.fill();
 
-  // head
   ctx.fillStyle = '#7a5233';
   ctx.beginPath();
   ctx.arc(0, -13, 12, 0, Math.PI * 2);
   ctx.fill();
 
-  // snout (direction facing)
   const fx = Math.cos(angle) * 5;
   const fy = Math.sin(angle) * 5;
   ctx.fillStyle = '#c99b6f';
@@ -668,28 +652,23 @@ function drawBear(angle) {
   ctx.ellipse(fx, -9 + fy * 0.3, 6, 5, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // nose
   ctx.fillStyle = '#2a1a10';
   ctx.beginPath();
   ctx.arc(fx * 1.6, -9 + fy * 0.5, 2, 0, Math.PI * 2);
   ctx.fill();
 
-  // eyes
   ctx.fillStyle = '#000';
   ctx.beginPath();
   ctx.arc(-4, -16, 1.6, 0, Math.PI * 2);
   ctx.arc(4, -16, 1.6, 0, Math.PI * 2);
   ctx.fill();
 
-  // feet
   ctx.fillStyle = '#5c3d26';
   ctx.beginPath();
   ctx.ellipse(-7, 21, 6, 4, 0, 0, Math.PI * 2);
   ctx.ellipse(7, 21, 6, 4, 0, 0, Math.PI * 2);
   ctx.fill();
 }
-
-//WORLD WALLS
 
 function drawWorldWall(x, y, w, h, type) {
   if (type === 'building') {
@@ -723,8 +702,6 @@ function drawWorldWall(x, y, w, h, type) {
   }
 }
 
-//MINIMAP
-
 function drawMinimap() {
   const isMobile = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
   const mmSize = isMobile ? 100 : 120;
@@ -733,14 +710,12 @@ function drawMinimap() {
   const scale = mmSize / mapInfo.width;
   const mmHeight = mapInfo.height * scale;
 
-  // background
   ctx.fillStyle = 'rgba(43, 32, 22, 0.85)';
   ctx.fillRect(mmX, mmY, mmSize, mmHeight);
   ctx.strokeStyle = 'rgba(240, 223, 192, 0.4)';
   ctx.lineWidth = 2;
   ctx.strokeRect(mmX, mmY, mmSize, mmHeight);
 
-  // walls (mini scale)
   mapInfo.walls.forEach(w => {
     if (w.type !== 'building' && w.type !== 'crate' && w.type !== 'border') return;
     const wx = mmX + w.x * scale;
@@ -758,7 +733,6 @@ function drawMinimap() {
     ctx.fillRect(wx, wy, Math.max(ww, 1), Math.max(wh, 1));
   });
 
-  // players
   latestState.players.forEach(p => {
     if (!p.alive) return;
     const px = mmX + p.x * scale;
@@ -772,7 +746,6 @@ function drawMinimap() {
     ctx.stroke();
   });
 
-  // camera viewport box
   ctx.strokeStyle = 'rgba(255,255,255,0.5)';
   ctx.lineWidth = 1;
   ctx.strokeRect(

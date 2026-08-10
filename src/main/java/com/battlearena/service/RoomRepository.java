@@ -1,16 +1,16 @@
 package com.battlearena.service;
 
-import com.battlearena.maps.MapProvider;
 import com.battlearena.model.Decoration;
 import com.battlearena.model.Room;
 import com.battlearena.model.Wall;
+import com.battlearena.maps.MapProvider;
+
 import java.util.List;
 
 public interface RoomRepository {
+    Room findAvailableRoom(int requestedSize);
 
-    Room findAvailableRoom();
-
-    Room createRoom(MapProvider mapProvider);
+    Room createRoom(MapProvider mapProvider, int maxPlayers);
 
     Room getById(String roomId);
 
@@ -26,5 +26,5 @@ public interface RoomRepository {
 
     void removeRoomIfEmpty(Room room);
 
-    List<Room> getAllRooms();   // <-- ye missing ho sakta hai
+    List<Room> getAllRooms();
 }

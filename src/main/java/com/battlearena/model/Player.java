@@ -21,6 +21,7 @@ public class Player {
     private boolean reloading = false;
     private long lastShot = 0;
     private String color;
+//    private String characterType = "penguin";
 
     @JsonIgnore
     private PlayerInput input = new PlayerInput();

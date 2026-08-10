@@ -5,6 +5,7 @@ import com.battlearena.model.Player;
 import com.battlearena.model.PlayerInput;
 import com.battlearena.model.Room;
 import com.battlearena.service.GameEngine;
+import com.battlearena.service.serviceImp.GameEngineServiceImpl;
 
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -34,13 +35,20 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         switch (msg.getType()) {
             case "joinGame": {
                 String name = "Player";
-                if (msg.getData() != null && msg.getData().has("name")) {
-                    name = msg.getData().get("name").asText("Player");
-                    if (name.length() > 16) name = name.substring(0, 16);
-                    if (name.trim().isEmpty()) name = "Player";
+                int roomSize = 4;
+                if (msg.getData() != null) {
+                    if (msg.getData().has("name")) {
+                        name = msg.getData().get("name").asText("Player");
+                        if (name.length() > 16) name = name.substring(0, 16);
+                        if (name.trim().isEmpty()) name = "Player";
+                    }
+                    if (msg.getData().has("roomSize")) {
+                        roomSize = msg.getData().get("roomSize").asInt(4);
+                        if (roomSize != 2 && roomSize != 4 && roomSize != 6) roomSize = 4;
+                    }
                 }
 
-                Room room = engine.findOrCreateRoom();
+                Room room = engine.findOrCreateRoom(roomSize);
                 Player player = engine.joinRoom(room, session, name);
 
                 Map<String, Object> joined = new HashMap<>();
@@ -48,8 +56,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 joined.put("roomId", room.getId());
 
                 Map<String, Object> mapInfo = new HashMap<>();
-                mapInfo.put("width", 2400);
-                mapInfo.put("height", 1800);
+                mapInfo.put("width", GameEngineServiceImpl.MAP_WIDTH);
+                mapInfo.put("height", GameEngineServiceImpl.MAP_HEIGHT);
                 mapInfo.put("walls", engine.getWallsForRoom(room));
                 mapInfo.put("decorations", engine.getDecorationsForRoom(room));
                 joined.put("map", mapInfo);

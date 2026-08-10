@@ -9,8 +9,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 @Data
 public class Room {
-
-    public enum State {WAITING, COUNTDOWN, PLAYING, ENDED}
+    public enum State { WAITING, COUNTDOWN, PLAYING, ENDED }
 
     private String id;
     private Map<String, Player> players = new ConcurrentHashMap<>();
@@ -18,6 +17,7 @@ public class Room {
     private volatile State state = State.WAITING;
     private volatile int countdownValue = 3;
     private volatile long startTime;
+    private volatile int maxPlayers = 4;
 
     public Room(String id) {
         this.id = id;
