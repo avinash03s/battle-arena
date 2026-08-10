@@ -1,0 +1,12 @@
+Agents and Agentic AI
+-----------------------
+
+Agents in LangChain4j:
+The langchain4j-agentic module provides a set of abstractions and utilities to help you build
+workflow and pure agentic AI applications. It allows you to define workflows, manage tool usage,
+and maintain context across interactions with different LLMs.
+
+An agent in LangChain4j performs a specific task or set of tasks using an LLM. An agent can be
+defined with an interface with a single method, in a similar way to a normal AI service, just
+adding the @Agent annotation to it.
+
