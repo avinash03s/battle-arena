@@ -26,8 +26,8 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class GameEngineServiceImpl implements GameEngine {
 
-    public static final double MAP_WIDTH = 5000;
-    public static final double MAP_HEIGHT = 4000;
+    public static final double MAP_WIDTH = 3000;
+    public static final double MAP_HEIGHT = 2000;
     private static final double WALL_THICKNESS = 40;
 
     private static final double PLAYER_RADIUS = 18;

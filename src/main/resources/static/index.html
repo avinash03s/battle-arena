@@ -8,13 +8,18 @@
 </head>
 <body>
 
+<div class="orientation-lock">
+    <div class="rotate-icon">🔄</div>
+    <h2>Please Rotate Your Device</h2>
+    <p>This game is best played in landscape mode.</p>
+</div>
+
 <div id="screen-start" class="screen active">
     <h1 class="title">BATTLE ARENA</h1>
     <div class="menu">
         <button id="btn-play" class="btn btn-primary">PLAY</button>
         <button id="btn-howto" class="btn">HOW TO PLAY</button>
         <button id="btn-settings" class="btn">SETTINGS</button>
-        <button id="btn-about" class="btn">ABOUT</button>
     </div>
 </div>
 
@@ -30,19 +35,10 @@
     <button class="btn back-btn" data-back="screen-start">BACK</button>
 </div>
 
-<!--<div id="screen-about" class="screen">-->
-<!--    <h2>ABOUT</h2>-->
-<!--    <div class="about">-->
-<!--        <p>AS-45</p>-->
-<!--    </div>-->
-<!--    <button class="btn back-btn" data-back="screen-start">BACK</button>-->
-<!--</div>-->
-
 <div id="screen-settings" class="screen">
     <h2>SETTINGS</h2>
     <div class="howto-box">
         <p>Sound and graphics settings coming soon.</p>
-        <p>Developed By - Avinash S</p>
     </div>
     <button class="btn back-btn" data-back="screen-start">BACK</button>
 </div>
@@ -57,12 +53,11 @@
     <button class="btn back-btn" data-back="screen-start">BACK</button>
 </div>
 
-
 <div id="screen-name" class="screen">
     <h2>ENTER YOUR NAME</h2>
     <label for="input-name"></label><input id="input-name" class="name-input" maxlength="16" placeholder="Your name" autocomplete="off" />
     <button id="btn-join" class="btn btn-primary">JOIN GAME</button>
-    <button class="btn back-btn" data-back="screen-room-size">BACK</button>
+    <button class="btn back-btn" data-back="screen-start">BACK</button>
 </div>
 
 <div id="screen-waiting" class="screen">
