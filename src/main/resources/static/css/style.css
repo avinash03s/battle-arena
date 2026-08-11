@@ -449,6 +449,28 @@ html, body {
   color: #f0dfc0;
 }
 
+.game-exit-btn {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 20;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  border: 2px solid #5c4426;
+  background: rgba(43, 32, 22, 0.9);
+  color: #f0dfc0;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #241a10;
+}
+
+.game-exit-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #241a10;
+}
+
 @media (max-width: 480px) {
   .leaderboard {
     font-size: 0.65rem;

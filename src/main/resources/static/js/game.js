@@ -62,6 +62,7 @@ document.querySelectorAll('[data-back]').forEach(el => {
 document.getElementById('btn-play').addEventListener('click', () => showScreen('screen-room-size'));
 document.getElementById('btn-howto').addEventListener('click', () => showScreen('screen-howto'));
 document.getElementById('btn-settings').addEventListener('click', () => showScreen('screen-settings'));
+document.getElementById('btn-about').addEventListener('click', () => showScreen('screen-about'));
 
 let selectedRoomSize = 4;
 document.querySelectorAll('.room-size-btn').forEach(btn => {
