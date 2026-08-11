@@ -8,12 +8,6 @@
 </head>
 <body>
 
-<!--<div class="orientation-lock">-->
-<!--    <div class="rotate-icon">🔄</div>-->
-<!--    <h2>Please Rotate Your Device</h2>-->
-<!--    <p>This game is best played in landscape mode.</p>-->
-<!--</div>-->
-
 <div id="screen-start" class="screen active">
     <h1 class="title">BATTLE ARENA</h1>
     <div class="menu">
@@ -125,3 +119,131 @@
 <script src="js/game.js"></script>
 </body>
 </html>
+
+<!--<!DOCTYPE html>-->
+<!--<html lang="en">-->
+<!--<head>-->
+<!--    <meta charset="UTF-8" />-->
+<!--    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />-->
+<!--    <title>Battle Arena</title>-->
+<!--    <link rel="stylesheet" href="css/style.css" />-->
+<!--</head>-->
+<!--<body>-->
+
+<!--&lt;!&ndash;<div class="orientation-lock">&ndash;&gt;-->
+<!--&lt;!&ndash;    <div class="rotate-icon">🔄</div>&ndash;&gt;-->
+<!--&lt;!&ndash;    <h2>Please Rotate Your Device</h2>&ndash;&gt;-->
+<!--&lt;!&ndash;    <p>This game is best played in landscape mode.</p>&ndash;&gt;-->
+<!--&lt;!&ndash;</div>&ndash;&gt;-->
+
+<!--<div id="screen-start" class="screen active">-->
+<!--    <h1 class="title">BATTLE ARENA</h1>-->
+<!--    <div class="menu">-->
+<!--        <button id="btn-play" class="btn btn-primary">PLAY</button>-->
+<!--        <button id="btn-howto" class="btn">HOW TO PLAY</button>-->
+<!--        <button id="btn-settings" class="btn">SETTINGS</button>-->
+<!--    </div>-->
+<!--</div>-->
+
+<!--<div id="screen-howto" class="screen">-->
+<!--    <h2>HOW TO PLAY</h2>-->
+<!--    <div class="howto-box">-->
+<!--        <p><strong>Move:</strong> WASD / Arrow Keys / Left Joystick (mobile)</p>-->
+<!--        <p><strong>Aim:</strong> Mouse / Right Joystick (mobile)</p>-->
+<!--        <p><strong>Shoot:</strong> Left Click / Fire Button (mobile)</p>-->
+<!--        <p><strong>Reload:</strong> R key / Reload Button (mobile)</p>-->
+<!--        <p><strong>Goal:</strong> Be the last player alive!</p>-->
+<!--    </div>-->
+<!--    <button class="btn back-btn" data-back="screen-start">BACK</button>-->
+<!--</div>-->
+
+<!--<div id="screen-settings" class="screen">-->
+<!--    <h2>SETTINGS</h2>-->
+<!--    <div class="howto-box">-->
+<!--        <p>Sound and graphics settings coming soon.</p>-->
+<!--    </div>-->
+<!--    <button class="btn back-btn" data-back="screen-start">BACK</button>-->
+<!--</div>-->
+
+<!--<div id="screen-room-size" class="screen">-->
+<!--    <h2>SELECT ROOM SIZE</h2>-->
+<!--    <div class="menu">-->
+<!--        <button class="btn btn-primary room-size-btn" data-size="2">2 PLAYERS</button>-->
+<!--        <button class="btn btn-primary room-size-btn" data-size="4">4 PLAYERS</button>-->
+<!--        <button class="btn btn-primary room-size-btn" data-size="6">6 PLAYERS</button>-->
+<!--    </div>-->
+<!--    <button class="btn back-btn" data-back="screen-start">BACK</button>-->
+<!--</div>-->
+
+<!--<div id="screen-name" class="screen">-->
+<!--    <h2>ENTER YOUR NAME</h2>-->
+<!--    <label for="input-name"></label><input id="input-name" class="name-input" maxlength="16" placeholder="Your name" autocomplete="off" />-->
+<!--    <button id="btn-join" class="btn btn-primary">JOIN GAME</button>-->
+<!--    <button class="btn back-btn" data-back="screen-start">BACK</button>-->
+<!--</div>-->
+
+<!--<div id="screen-waiting" class="screen">-->
+<!--    <h2 id="waiting-title">FINDING PLAYERS...</h2>-->
+<!--    <div id="player-count" class="player-count">Players: 0/4</div>-->
+<!--    <ul id="waiting-list" class="waiting-list"></ul>-->
+<!--</div>-->
+
+<!--<div id="screen-countdown" class="screen">-->
+<!--    <div id="countdown-number" class="countdown-number">3</div>-->
+<!--</div>-->
+
+<!--<div id="screen-game" class="screen">-->
+<!--    <canvas id="game-canvas"></canvas>-->
+
+<!--    <div class="hud">-->
+<!--        <div class="hud-top-left">-->
+<!--            <div class="hp-bar-wrap">-->
+<!--                <div id="hp-bar" class="hp-bar"></div>-->
+<!--            </div>-->
+<!--            <div id="hp-text" class="hp-text">100 / 100</div>-->
+<!--        </div>-->
+
+<!--        <div class="hud-top-right">-->
+<!--            <div id="timer" class="timer">00:00</div>-->
+<!--            <div id="alive-count" class="alive-count">PLAYERS: 0</div>-->
+<!--        </div>-->
+
+<!--        <div class="hud-bottom-right">-->
+<!--            <div id="ammo-text" class="ammo-text">20 / 60</div>-->
+<!--        </div>-->
+
+<!--        <div id="leaderboard" class="leaderboard"></div>-->
+
+<!--        <div id="kill-feed" class="kill-feed"></div>-->
+<!--    </div>-->
+
+<!--    <div id="mobile-controls" class="mobile-controls">-->
+<!--        <div id="joystick-move" class="joystick">-->
+<!--            <div class="joystick-knob" id="joystick-move-knob"></div>-->
+<!--        </div>-->
+<!--        <div class="mobile-action-buttons">-->
+<!--            <button id="btn-reload-mobile" class="mobile-btn">R</button>-->
+<!--        </div>-->
+<!--        <div id="joystick-aim" class="joystick joystick-aim">-->
+<!--            <div class="joystick-knob" id="joystick-aim-knob"></div>-->
+<!--        </div>-->
+<!--    </div>-->
+<!--</div>-->
+
+<!--<div id="screen-result" class="screen">-->
+<!--    <h1 id="result-title" class="result-title">VICTORY!</h1>-->
+<!--    <div id="result-sub" class="result-sub"></div>-->
+<!--    <div class="result-stats">-->
+<!--        <div id="result-kills">Kills: 0</div>-->
+<!--        <div id="result-time">Survival Time: 00:00</div>-->
+<!--    </div>-->
+<!--    <div id="result-list" class="result-list"></div>-->
+<!--    <div class="menu">-->
+<!--        <button id="btn-play-again" class="btn btn-primary">PLAY AGAIN</button>-->
+<!--        <button id="btn-main-menu" class="btn" data-back="screen-start">MAIN MENU</button>-->
+<!--    </div>-->
+<!--</div>-->
+
+<!--<script src="js/game.js"></script>-->
+<!--</body>-->
+<!--</html>-->
