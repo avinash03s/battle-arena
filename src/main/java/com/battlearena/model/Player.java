@@ -28,6 +28,7 @@ public class Player {
 
     @JsonIgnore
     private WebSocketSession session;
+    private boolean bot;
 
     public Player(String id, String name, double x, double y, String color) {
         this.id = id;
@@ -36,4 +37,5 @@ public class Player {
         this.y = y;
         this.color = color;
     }
+
 }
