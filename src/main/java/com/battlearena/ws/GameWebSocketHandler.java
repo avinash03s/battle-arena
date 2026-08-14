@@ -1,12 +1,12 @@
 package com.battlearena.ws;
 
-import com.battlearena.model.ClientMessage;
-import com.battlearena.model.Player;
-import com.battlearena.model.PlayerInput;
-import com.battlearena.model.Room;
+import com.battlearena.model.*;
+import com.battlearena.service.CharacterService;
 import com.battlearena.service.GameEngine;
+import com.battlearena.repository.PlayerProfileRepository;
 import com.battlearena.service.serviceImp.GameEngineServiceImpl;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -18,14 +18,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Component
+@RequiredArgsConstructor
 public class GameWebSocketHandler extends TextWebSocketHandler {
 
     private final GameEngine engine;
     private final ObjectMapper mapper = new ObjectMapper();
-
-    public GameWebSocketHandler(GameEngine engine) {
-        this.engine = engine;
-    }
+    private final CharacterService characterService;
+    private final PlayerProfileRepository playerProfileRepository;
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
@@ -36,6 +35,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             case "joinGame": {
                 String name = "Player";
                 int roomSize = 4;
+                String characterType = "penguin";
+
                 if (msg.getData() != null) {
                     if (msg.getData().has("name")) {
                         name = msg.getData().get("name").asText("Player");
@@ -46,10 +47,30 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                         roomSize = msg.getData().get("roomSize").asInt(4);
                         if (roomSize != 2 && roomSize != 4 && roomSize != 6) roomSize = 4;
                     }
+                    if (msg.getData().has("characterType")) {
+                        characterType = msg.getData().get("characterType").asText("penguin");
+                    }
+                }
+
+                System.out.println("[joinGame] raw characterType from client = " + characterType);
+
+                // Backend validation
+                if (!characterService.isAvailable(characterType)) {
+                    System.out.println("[joinGame] characterType '" + characterType + "' NOT available, falling back to penguin");
+                    characterType = "penguin";
                 }
 
                 Room room = engine.findOrCreateRoom(roomSize);
                 Player player = engine.joinRoom(room, session, name);
+
+                // Set character on the Player FIRST — this is what rendering/state uses
+                player.setCharacterType(characterType);
+
+                System.out.println("[joinGame] player " + player.getId() + " final characterType = " + player.getCharacterType());
+
+                // Profile is for persistence only, does not affect this match's render
+                PlayerProfile profile = playerProfileRepository.findOrCreate(player.getId());
+                profile.setSelectedCharacter(characterType);
 
                 Map<String, Object> joined = new HashMap<>();
                 joined.put("selfId", player.getId());
@@ -85,11 +106,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 break;
             }
             case "leaveMatch": {
-                // Player deliberately hit "Leave Match" / "Exit" button in the UI.
-                // Distinct from a raw socket disconnect: we still get to run our own
-                // cleanup logic here, and the socket itself is closed by the client
-                // right after this, which will also trigger afterConnectionClosed —
-                // handleLeaveMatch() below is written to be safe if called first.
                 Room room = engine.getRoomBySession(session.getId());
                 if (room == null) return;
                 engine.handleLeaveMatch(room, session.getId());

@@ -1,4 +1,4 @@
-package com.battlearena.service;
+package com.battlearena.repository;
 
 import com.battlearena.model.Decoration;
 import com.battlearena.model.Room;

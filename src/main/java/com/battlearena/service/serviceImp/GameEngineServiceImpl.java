@@ -4,14 +4,13 @@ import com.battlearena.maps.ArenaMapThree;
 import com.battlearena.model.*;
 import com.battlearena.service.GameEngine;
 import com.battlearena.maps.MapProvider;
-import com.battlearena.service.RoomRepository;
+import com.battlearena.repository.RoomRepository;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import tools.jackson.databind.ObjectMapper;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -700,7 +699,7 @@ public class GameEngineServiceImpl implements GameEngine {
             }
         }
 
-        if (alive.size() <= 1 && room.getPlayers().size() >= 2) {
+        if (alive.size() <= 1) {
             room.setState(Room.State.ENDED);
 
             Player winner = alive.isEmpty() ? null : alive.get(0);
@@ -742,7 +741,7 @@ public class GameEngineServiceImpl implements GameEngine {
             m.put("id", p.getId());
             m.put("name", p.getName());
             m.put("color", p.getColor());
-//            m.put("characterType", p.getCharacterType());
+            m.put("characterType", p.getCharacterType());
             playersInfo.add(m);
         }
 
@@ -801,7 +800,7 @@ public class GameEngineServiceImpl implements GameEngine {
         m.put("reserveAmmo", p.getReserveAmmo());
         m.put("reloading", p.isReloading());
         m.put("color", p.getColor());
-//        m.put("characterType", p.getCharacterType());
+        m.put("characterType", p.getCharacterType());
         return m;
     }
 

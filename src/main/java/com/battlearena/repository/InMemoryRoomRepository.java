@@ -1,11 +1,10 @@
-package com.battlearena.service.serviceImp;
+package com.battlearena.repository;
 
 import com.battlearena.model.Decoration;
 import com.battlearena.model.Room;
 import com.battlearena.model.Wall;
 import com.battlearena.maps.MapProvider;
-import com.battlearena.service.RoomRepository;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Repository;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,7 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Component
+@Repository
 public class InMemoryRoomRepository implements RoomRepository {
 
     private final Map<String, Room> rooms = new ConcurrentHashMap<>();

@@ -14,27 +14,88 @@ html, body {
   background: linear-gradient(135deg, #1a1410, #2b2016);
   font-family: 'Segoe UI', Roboto, Arial, sans-serif;
   color: #eee;
-  touch-action: none;
 }
+
+/*
+   SCREENS
+   Screens are now scrollable (instead of hidden/cut) whenever
+   their content is taller than the viewport — fixes blank /
+   cut-off UI on short or landscape screens (e.g. 740x360).
+    */
 
 .screen {
   display: none;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   width: 100%;
   height: 100%;
   position: fixed;
   top: 0;
   left: 0;
-  padding: 24px;
+  padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px));
   text-align: center;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .screen.active {
   display: flex;
 }
 
+/* Screens whose content is short enough to always fit get
+   vertically centered for a nicer look, while still being
+   scrollable as a safety net on very short viewports. */
+#screen-start,
+#screen-howto,
+#screen-settings,
+#screen-about,
+#screen-name,
+#screen-waiting,
+#screen-countdown,
+#screen-result,
+#screen-room-size,
+#screen-character {
+  justify-content: center;
+}
+
+/* Game screen must never scroll — it's the canvas + HUD */
+#screen-game {
+  overflow: hidden;
+  touch-action: none;
+}
+
+/*alpha group logo*/
+.brand-tag {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+
+.brand-tag-line {
+  width: 28px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #c9a876);
+}
+
+.brand-tag-line:last-child {
+  background: linear-gradient(90deg, #c9a876, transparent);
+}
+
+.brand-tag-text {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: #c9a876;
+  text-transform: uppercase;
+}
+/*--------------------------------------*/
 .title {
   font-size: clamp(2.2rem, 9vw, 4rem);
   letter-spacing: 4px;
@@ -43,6 +104,7 @@ html, body {
   margin-bottom: 40px;
   font-weight: 900;
   -webkit-text-stroke: 1px #3d2817;
+  flex-shrink: 0;
 }
 
 .menu {
@@ -51,6 +113,7 @@ html, body {
   gap: 14px;
   width: 100%;
   max-width: 320px;
+  flex-shrink: 0;
 }
 
 .btn {
@@ -81,10 +144,12 @@ html, body {
 
 .back-btn {
   margin-top: 24px;
+  flex-shrink: 0;
 }
 
 .howto-box {
   max-width: 420px;
+  width: 100%;
   background: rgba(43, 32, 22, 0.85);
   border: 2px solid #5c4426;
   border-radius: 12px;
@@ -113,6 +178,146 @@ html, body {
   border-color: #d4883a;
 }
 
+
+/*
+   ROOM SIZE SCREEN
+ */
+
+#screen-room-size h2 {
+  flex-shrink: 0;
+  margin-bottom: 16px;
+}
+
+/*
+   CHARACTER SELECTION
+   Flexible grid: auto-fits as many columns as the viewport
+   allows instead of a hard-coded 5, so it never overflows.
+ */
+
+#screen-character {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+#screen-character h2 {
+  flex-shrink: 0;
+  margin-bottom: 12px;
+}
+
+.character-grid {
+    width: 100%;
+    max-width: 700px;
+
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+
+    gap: 10px;
+
+    margin: 0 auto;
+    flex-shrink: 1;
+}
+
+.character-card {
+    min-height: 0;
+    aspect-ratio: 1 / 1;
+
+    padding: 8px 6px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    border: 2px solid #5c4426;
+    border-radius: 12px;
+
+    background: linear-gradient(
+        180deg,
+        #4a3826,
+        #33261a
+    );
+
+    color: #f0dfc0;
+
+    cursor: pointer;
+
+    transition:
+        transform 0.15s,
+        border-color 0.15s,
+        background 0.15s;
+}
+
+.character-card:hover {
+    transform: translateY(-3px);
+}
+
+.character-card.selected {
+    border-color: #ffd23a;
+
+    background: linear-gradient(
+        180deg,
+        #604528,
+        #3d2b1c
+    );
+
+    box-shadow:
+        0 0 0 2px rgba(255, 210, 58, 0.2),
+        0 0 18px rgba(255, 210, 58, 0.25);
+}
+
+.character-preview {
+    font-size: clamp(1.6rem, 6vw, 3.2rem);
+    line-height: 1;
+
+    margin-bottom: 6px;
+}
+
+.character-name {
+    font-size: clamp(0.65rem, 2.2vw, 0.9rem);
+    font-weight: 800;
+
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.character-status {
+    margin-top: 4px;
+
+    font-size: clamp(0.5rem, 1.6vw, 0.65rem);
+    font-weight: 800;
+
+    color: #ffd23a;
+    white-space: nowrap;
+}
+
+.character-card.locked {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.character-card.locked:hover {
+    transform: none;
+}
+
+.character-card.locked .character-status {
+    color: #a8957e;
+}
+
+.character-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+
+    margin-top: 16px;
+    flex-shrink: 0;
+}
+
+.character-actions .back-btn {
+    margin-top: 0;
+}
+
+/*---------------------------------------------------*/
 .player-count {
   font-size: 1.3rem;
   color: #ffd23a;
@@ -140,11 +345,6 @@ html, body {
   font-weight: 900;
   color: #ffd23a;
   text-shadow: 0 0 40px rgba(255, 210, 58, 0.8), 3px 3px 0 #7a5233;
-}
-
-#screen-game {
-  padding: 0;
-  overflow: hidden;
 }
 
 #game-canvas {
@@ -471,9 +671,193 @@ html, body {
   box-shadow: 0 1px 0 #241a10;
 }
 
+/*
+   RESPONSIVE ADJUSTMENTS
+   Combines width AND height breakpoints so short/landscape
+   viewports (e.g. 740x360 phone landscape) get compact sizing
+   instead of overflowing with nothing to scroll.
+  */
+
 @media (max-width: 480px) {
   .leaderboard {
     font-size: 0.65rem;
     min-width: 110px;
   }
+
+  .character-grid {
+      grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+      gap: 8px;
+  }
+
+  .character-actions {
+      margin-top: 12px;
+  }
+}
+
+/* Short viewports (landscape phones, small embedded windows) */
+@media (max-height: 480px) {
+  .screen {
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+
+  .brand-tag {
+      margin-bottom: 6px;
+    }
+
+    .brand-tag-text {
+      font-size: 0.6rem;
+      letter-spacing: 2px;
+    }
+
+    .brand-tag-line {
+      width: 18px;
+    }
+
+  .title {
+    font-size: clamp(1.6rem, 7vw, 2.4rem);
+    margin-bottom: 16px;
+  }
+
+  .menu {
+    gap: 8px;
+  }
+
+  .btn {
+    padding: 10px 16px;
+    font-size: 0.95rem;
+  }
+
+  #screen-character h2,
+  #screen-room-size h2 {
+    font-size: 1.2rem;
+    margin-bottom: 8px;
+  }
+
+  .character-grid {
+    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+    gap: 6px;
+  }
+
+  .character-preview {
+    font-size: clamp(1.2rem, 5vh, 2rem);
+    margin-bottom: 2px;
+  }
+
+  .character-name {
+    font-size: clamp(0.55rem, 2vh, 0.75rem);
+  }
+
+  .character-status {
+    font-size: clamp(0.45rem, 1.4vh, 0.55rem);
+    margin-top: 2px;
+  }
+
+  .character-actions {
+    margin-top: 8px;
+    gap: 8px;
+  }
+
+  .back-btn {
+    margin-top: 12px;
+  }
+
+  .howto-box {
+    padding: 12px;
+    line-height: 1.5;
+    font-size: 0.85rem;
+  }
+
+  .countdown-number {
+    font-size: clamp(3.5rem, 20vh, 6rem);
+  }
+}
+
+.loading-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #150f0a;
+  z-index: 999;
+  transition: opacity 0.4s ease;
+}
+
+.loading-screen.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loader-bg {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 40%, rgba(212,136,58,0.25), transparent 60%),
+              linear-gradient(135deg, #1a1410, #2b2016);
+  filter: blur(2px);
+}
+
+.loader-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.loader-icon {
+  font-size: 3.4rem;
+  margin-bottom: 14px;
+  filter: drop-shadow(0 0 14px rgba(255, 210, 58, 0.6));
+  animation: pulseIcon 1.6s ease-in-out infinite;
+}
+
+@keyframes pulseIcon {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+.loader-title {
+  margin-bottom: 4px;
+  font-size: clamp(1.8rem, 8vw, 3rem);
+}
+
+.loader-tagline {
+  color: #c9a876;
+  letter-spacing: 3px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-bottom: 34px;
+}
+
+.loader-bar-wrap {
+  width: min(280px, 70vw);
+  height: 10px;
+  background: #000;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #3d2c1a;
+  margin-bottom: 14px;
+}
+
+.loader-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #7c4fe0, #a97ef0);
+  box-shadow: 0 0 10px rgba(169,126,240,0.7);
+  transition: width 0.3s ease;
+}
+
+.loader-text {
+  color: #8a7862;
+  font-size: 0.8rem;
+  letter-spacing: 2px;
+  font-weight: 700;
 }
