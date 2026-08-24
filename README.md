@@ -1,6 +1,6 @@
 Game Name - Battle Arena
-- 1.0
-- Avinash Surwase
+-Version 1.0
+-Developer - Avinash Surwase
 
 
 Loading Screen...!
