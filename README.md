@@ -1,7 +1,5 @@
-Game Name - Battle Arena
-- 1.0
-
-
+- Name : Battle Arena
+- Version : 1.0
 
 Loading Screen...!
 <img width="1357" height="619" alt="image" src="https://github.com/user-attachments/assets/a0cde673-e885-4c99-b283-4e79604b2802" />
