@@ -1,9 +1,0 @@
-AI Service
-
-we have been covering low-level components like ChatModel, ChatMessage, ChatMemory, etc.
-Working at this level is very flexible and gives you total freedom, but
-it also forces you to write a lot of boilerplate code.
-
-(e.g., prompt templates, chat memory, LLMs, output parsers, RAG components: embedding models and stores)
-
-Chains (legacy)
