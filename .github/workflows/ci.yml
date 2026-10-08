@@ -1,0 +1,71 @@
+# Name of our GitHub Actions workflow
+# This name will appear in the GitHub Actions tab
+name: Battle Arena CI
+
+
+# Decide when the CI pipeline should run
+on:
+
+  # Run CI whenever code is pushed to any branch
+  # This allows us to test feature branches before creating a PR
+  push:
+
+  # Run CI when a Pull Request is created or updated
+  # and the target branch is master
+  pull_request:
+    branches:
+      - master
+
+
+# Define the jobs that GitHub Actions will execute
+jobs:
+
+  # Job name: Build and Test
+  build-and-test:
+
+    # GitHub will create an Ubuntu virtual machine
+    # and execute our CI pipeline on it
+    runs-on: ubuntu-latest
+
+
+    # Steps that will execute one by one
+    steps:
+
+      # Step 1: Download/checkout our project source code
+      # from the GitHub repository
+      - name: Checkout source code
+        uses: actions/checkout@v7
+
+
+      # Step 2: Install and configure Java 17
+      # Our Battle Arena project uses Java 17
+      - name: Setup Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+          # Cache Maven dependencies
+          # This makes future pipeline runs faster
+          cache: maven
+
+
+      # Step 3: Give execute permission to Maven Wrapper
+      # Linux requires this permission to run ./mvnw
+      - name: Make Maven Wrapper executable
+        run: chmod +x mvnw
+
+
+      # Step 4: Run all automated tests
+      # If any test fails, the CI pipeline fails
+      - name: Run tests
+        run: ./mvnw clean test
+
+
+      # Step 5: Build/package the Spring Boot application
+      # This creates the JAR file inside the target folder
+      #
+      # We use -DskipTests because tests were already
+      # executed in the previous step
+      - name: Build application
+        run: ./mvnw package -DskipTests
