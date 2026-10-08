@@ -4,11 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#0a1f1e" />
+    <link rel="manifest" href="manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
     <title>Battle Arena</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=7" />
+    <link rel="stylesheet" href="css/style.css?v=9" />
 </head>
 <body>
 
@@ -184,6 +186,17 @@
     </div>
 </div>
 
+<!-- Android install popup (centered). Shown only by pwa.js on Android Chrome. -->
+<div id="install-popup" class="install-popup" hidden>
+    <div class="install-card">
+        <div class="install-icon">⚔️</div>
+        <h2 class="install-title">Install Battle Arena</h2>
+        <p id="install-text" class="install-text">Play fullscreen in landscape, like a real app.</p>
+        <button id="install-btn" class="btn btn-primary">Install</button>
+        <button id="install-later" class="btn back-btn">Not now</button>
+    </div>
+</div>
+
 <script>
     // Step 1 -> 2: when the studio splash finishes, remove it and tell game.js to start the loading screen
     (function () {
@@ -201,6 +214,10 @@
       setTimeout(finish, 5000); // safety net if animations are disabled
     })();
 </script>
+<script>
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+</script>
+<script src="js/pwa.js?v=2"></script>
 <script src="js/game.js?v=6"></script>
 </body>
 </html>

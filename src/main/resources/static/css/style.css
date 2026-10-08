@@ -7,10 +7,12 @@
 html,body{width:100%;height:100%;overflow:hidden;background:var(--ink);font-family:var(--body);color:var(--cream);font-size:17px}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
 :focus-visible{outline:3px solid var(--mint);outline-offset:3px}
+/* iOS Safari can't type in inputs when user-select is none */
+input,textarea{user-select:text;-webkit-user-select:text}
 
 /* Screens: teal field with diagonal stripe texture */
 .screen{display:none;flex-direction:column;align-items:center;justify-content:flex-start;position:fixed;inset:0;
-padding:24px 20px calc(24px + env(safe-area-inset-bottom,0px));text-align:center;overflow-y:auto;overflow-x:hidden;
+padding:24px calc(20px + env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) calc(20px + env(safe-area-inset-left,0px));text-align:center;overflow-y:auto;overflow-x:hidden;
 overscroll-behavior:contain;touch-action:pan-y;
 background:repeating-linear-gradient(-45deg,transparent 0 22px,rgba(255,255,255,.035) 22px 44px),
 radial-gradient(circle at 50% 0,var(--teal2),var(--teal) 70%)}
@@ -24,7 +26,7 @@ radial-gradient(circle at 50% 0,var(--teal2),var(--teal) 70%)}
 
 /* Type */
 .title{font-family:var(--display);font-weight:400;font-size:clamp(2.6rem,11vw,5rem);line-height:.95;color:var(--sun);
-text-shadow:0 5px 0 var(--coral),0 10px 0 var(--ink);margin-bottom:22px;letter-spacing:1px}
+text-shadow:0 5px 0 var(--coral),0 10px 0 var(--ink);margin-bottom:22px;letter-spacing:1px;text-align:center}
 .subtitle{color:var(--mute);font-size:1.05rem;margin:-4px 0 30px}
 .screen-heading{font-family:var(--display);font-weight:400;font-size:clamp(1.4rem,5vw,2rem);color:var(--cream);margin-bottom:24px}
 .brand-tag{display:flex;align-items:center;gap:10px;margin-bottom:14px}
@@ -59,7 +61,7 @@ background:var(--cream);border:3px solid var(--ink);border-radius:10px;box-shado
 /* Characters */
 #screen-character{padding-top:16px;padding-bottom:16px}
 .character-grid{width:100%;max-width:720px;display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:12px}
-.character-card{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px;
+.character-card{font-family:var(--body);aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px;
 background:var(--teal2);color:var(--cream);border:3px solid var(--ink);border-radius:14px;box-shadow:0 5px 0 var(--ink);cursor:pointer;
 transition:transform .1s}
 .character-card:hover{transform:translateY(-3px)}
@@ -90,28 +92,28 @@ background:var(--sun);border:6px solid var(--ink);box-shadow:0 10px 0 var(--ink)
 /* In-game HUD */
 #game-canvas{display:block;width:100%;height:100%;background:#4a8c3f;touch-action:none}
 .hud{position:absolute;inset:0;pointer-events:none}
-.hud-top-left{position:absolute;top:calc(env(safe-area-inset-top,12px) + 230px);left:12px;width:200px;z-index:5}
+.hud-top-left{position:absolute;top:calc(env(safe-area-inset-top,0px) + 230px);left:calc(12px + env(safe-area-inset-left,0px));width:200px;z-index:5}
 .hp-bar-wrap{height:18px;background:var(--ink);border:3px solid var(--ink);border-radius:9px;overflow:hidden;outline:2px solid var(--cream)}
 .hp-bar{height:100%;width:100%;background:linear-gradient(90deg,var(--coral),var(--sun));transition:width .15s}
 .hp-text{font:700 .95rem var(--body);margin-top:6px;color:var(--cream);text-shadow:0 2px 0 var(--ink)}
-.hud-top-right{position:absolute;top:env(safe-area-inset-top,12px);right:12px;text-align:right;z-index:5;text-shadow:0 2px 0 var(--ink)}
+.hud-top-right{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);right:calc(12px + env(safe-area-inset-right,0px));text-align:right;z-index:5;text-shadow:0 2px 0 var(--ink)}
 .timer{font-family:var(--display);font-size:1.2rem;color:var(--cream)}
 .alive-count{font-weight:700;color:var(--mint);margin-top:2px}
-.hud-bottom-right{position:absolute;bottom:calc(env(safe-area-inset-bottom,20px) + 240px);right:16px;z-index:5;font-family:var(--display);
+.hud-bottom-right{position:absolute;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);right:calc(16px + env(safe-area-inset-right,0px));z-index:5;font-family:var(--display);
 font-size:1.1rem;color:var(--ink);background:var(--sun);border:3px solid var(--ink);border-radius:10px;padding:6px 14px;box-shadow:0 4px 0 var(--ink)}
-.leaderboard{position:absolute;top:calc(env(safe-area-inset-top,12px) + 56px);right:12px;min-width:140px;z-index:5;padding:8px 12px;
+.leaderboard{position:absolute;top:calc(env(safe-area-inset-top,0px) + 68px);right:calc(12px + env(safe-area-inset-right,0px));min-width:140px;z-index:5;padding:8px 12px;
 font-size:.85rem;background:rgba(10,31,30,.82);border:3px solid var(--ink);border-radius:10px}
 .leaderboard div{padding:2px 0;white-space:nowrap}
-.kill-feed{position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:4px;align-items:center}
+.kill-feed{position:absolute;top:calc(env(safe-area-inset-top,0px) + 12px);left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:4px;align-items:center}
 .kill-feed-item{background:var(--ink);border-left:4px solid var(--coral);border-radius:6px;padding:5px 14px;font-weight:600;font-size:.9rem;animation:fade 3s forwards}
 @keyframes fade{0%,70%{opacity:1}100%{opacity:0}}
-.game-exit-btn{position:absolute;top:14px;left:14px;z-index:20;padding:8px 16px;font-family:var(--display);font-size:.8rem;
+.game-exit-btn{position:absolute;top:calc(env(safe-area-inset-top,0px) + 14px);left:calc(14px + env(safe-area-inset-left,0px));z-index:20;padding:8px 16px;font-family:var(--display);font-size:.8rem;
 background:var(--cream);color:var(--ink);border:3px solid var(--ink);border-radius:9px;box-shadow:0 4px 0 var(--ink);cursor:pointer}
 .game-exit-btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
 
 /* Mobile controls */
 .mobile-controls{position:absolute;bottom:0;left:0;width:100%;height:220px;display:none;justify-content:space-between;align-items:flex-end;
-padding:0 20px env(safe-area-inset-bottom,20px);pointer-events:none;z-index:10}
+padding:0 calc(20px + env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) calc(20px + env(safe-area-inset-left,0px));pointer-events:none;z-index:10}
 .joystick{width:112px;height:112px;border-radius:50%;background:rgba(255,246,224,.12);border:3px solid rgba(255,246,224,.5);position:relative;pointer-events:auto;touch-action:none}
 .joystick-knob{width:48px;height:48px;border-radius:50%;background:var(--sun);border:3px solid var(--ink);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none}
 .joystick-aim .joystick-knob{background:var(--coral)}
@@ -119,9 +121,9 @@ padding:0 20px env(safe-area-inset-bottom,20px);pointer-events:none;z-index:10}
 .mobile-btn{width:58px;height:58px;border-radius:50%;background:var(--mint);border:3px solid var(--ink);box-shadow:0 4px 0 var(--ink);font:400 1.1rem var(--display);color:var(--ink)}
 @media (hover:none) and (pointer:coarse){
 .mobile-controls{display:flex}
-.hud-top-left{width:130px;top:calc(env(safe-area-inset-top,8px) + 175px)}
-.leaderboard{top:calc(env(safe-area-inset-top,8px) + 44px);font-size:.7rem;min-width:100px;padding:5px 8px}
-.hud-bottom-right{bottom:calc(env(safe-area-inset-bottom,15px) + 235px);font-size:.9rem;padding:4px 10px}
+.hud-top-left{width:130px;top:calc(env(safe-area-inset-top,0px) + 175px)}
+.leaderboard{top:calc(env(safe-area-inset-top,0px) + 58px);font-size:.7rem;min-width:100px;padding:5px 8px}
+.hud-bottom-right{bottom:calc(env(safe-area-inset-bottom,0px) + 235px);font-size:.9rem;padding:4px 10px}
 .timer{font-size:1rem}}
 
 /* Result */
@@ -146,10 +148,11 @@ letter-spacing:.3em;text-indent:.3em;text-transform:uppercase;animation:rise .6s
 @keyframes rise{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
 @keyframes fill{to{width:100%}}
 @keyframes splashOut{to{opacity:0;visibility:hidden}}
-.loading-screen{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;
+.loading-screen{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;text-align:center;
 background:radial-gradient(circle at 50% 30%,var(--teal2),var(--ink));transition:opacity .4s}
 .loading-screen.hidden{opacity:0;pointer-events:none}
-.loader-content{display:flex;flex-direction:column;align-items:center;padding:24px}
+.loader-content{display:flex;flex-direction:column;align-items:center;text-align:center;padding:24px}
+.loader-content .title{text-align:center;margin-bottom:22px}
 .loader-icon{font-size:3rem;margin-bottom:14px}
 .loader-tagline{color:var(--mute);margin-bottom:28px;font-weight:600}
 .loader-bar-wrap{width:min(280px,70vw);height:12px;background:var(--ink);border:3px solid var(--cream);border-radius:8px;overflow:hidden;margin-bottom:12px}
@@ -182,7 +185,7 @@ font:400 1.6rem/1 var(--display);box-shadow:0 4px 0 var(--ink);cursor:pointer}
 
 /* Lobby (waiting screen) */
 .waiting-list{list-style:none;width:100%;max-width:480px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:18px}
-.waiting-list .slot{display:flex;align-items:center;gap:12px;padding:10px 14px;background:transparent;color:var(--mute);
+.waiting-list .slot{display:flex;align-items:center;gap:12px;margin:0;padding:10px 14px;background:transparent;color:var(--mute);
 border:3px dashed var(--mute);border-radius:12px;box-shadow:none;font-weight:600;text-align:left}
 .waiting-list .slot-avatar{flex:none;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.7rem;background:rgba(255,255,255,.08)}
 .waiting-list .slot-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:1.1rem}
@@ -220,27 +223,27 @@ border:3px dashed var(--mute);border-radius:12px;box-shadow:none;font-weight:600
    ===================================================================== */
 
 /* R button: next to the aim joystick instead of the middle of the screen */
-.mobile-action-buttons{position:absolute;right:calc(20px + 112px + 16px);bottom:calc(env(safe-area-inset-bottom,0px) + 30px);margin:0}
+.mobile-action-buttons{position:absolute;right:calc(20px + 112px + 16px + env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 47px);margin:0}
 
 @media (max-height:500px){
   /* Smaller Exit button */
-  .game-exit-btn{top:calc(env(safe-area-inset-top,0px) + 8px);left:12px;padding:5px 10px;font-size:.7rem;box-shadow:0 3px 0 var(--ink)}
+  .game-exit-btn{top:calc(env(safe-area-inset-top,0px) + 8px);left:calc(12px + env(safe-area-inset-left,0px));padding:5px 10px;font-size:.7rem;box-shadow:0 3px 0 var(--ink)}
 
   /* HUD */
   .hp-bar-wrap{height:12px;border-width:2px}
   .hp-text{font-size:.8rem;margin-top:3px}
-  .hud-top-right{top:calc(env(safe-area-inset-top,0px) + 6px);right:10px}
+  .hud-top-right{top:calc(env(safe-area-inset-top,0px) + 6px);right:calc(10px + env(safe-area-inset-right,0px))}
   .timer{font-size:.9rem}
   .alive-count{font-size:.8rem}
-  .leaderboard{top:calc(env(safe-area-inset-top,0px) + 58px);right:10px;font-size:.65rem;min-width:100px;padding:4px 8px;border-width:2px}
+  .leaderboard{top:calc(env(safe-area-inset-top,0px) + 58px);right:calc(10px + env(safe-area-inset-right,0px));font-size:.65rem;min-width:100px;padding:4px 8px;border-width:2px}
   .leaderboard div{padding:1px 0;line-height:1.25}
 
   /* Ammo: above the aim joystick, away from the leaderboard */
-  .hud-bottom-right{bottom:calc(env(safe-area-inset-bottom,0px) + 150px);right:20px;font-size:.8rem;padding:3px 10px}
+  .hud-bottom-right{bottom:calc(env(safe-area-inset-bottom,0px) + 150px);right:calc(20px + env(safe-area-inset-right,0px));font-size:.8rem;padding:3px 10px}
 
   .mobile-controls{height:150px;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 10px)}
   .joystick{width:100px;height:100px}
-  .mobile-action-buttons{right:calc(20px + 100px + 14px);bottom:calc(env(safe-area-inset-bottom,0px) + 20px)}
+  .mobile-action-buttons{right:calc(20px + 100px + 14px + env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 35px)}
   .mobile-btn{width:50px;height:50px}
 
   /* Result screen: fits without scrolling */
@@ -250,4 +253,21 @@ border:3px dashed var(--mute);border-radius:12px;box-shadow:none;font-weight:600
   .result-list{max-width:520px;margin-bottom:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px}
   .result-list div{margin:0;padding:6px 10px;font-size:.85rem;border-width:2px}
   #screen-result .menu{grid-template-columns:1fr 1fr;max-width:380px}
+}
+
+/* Android install popup: centered over everything */
+.install-popup{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;
+background:rgba(10,31,30,.85);padding:20px}
+.install-popup[hidden]{display:none}
+.install-card{width:100%;max-width:340px;padding:24px 20px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;
+background:var(--teal2);border:3px solid var(--ink);border-radius:16px;box-shadow:0 8px 0 var(--ink)}
+.install-icon{font-size:3rem}
+.install-title{font-family:var(--display);font-weight:400;font-size:1.4rem;color:var(--sun)}
+.install-text{color:var(--cream);line-height:1.5}
+.install-card .btn{width:100%}
+.install-card .back-btn{margin-top:0}
+
+/* Desktop (mouse): no joysticks, so ammo sits in the bottom-right corner */
+@media (hover:hover) and (pointer:fine){
+.hud-bottom-right{bottom:calc(env(safe-area-inset-bottom,0px) + 20px)}
 }
