@@ -3,277 +3,170 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0a1f1e" />
     <title>Battle Arena</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css?v=7" />
 </head>
 <body>
 
-<!--front loading screen-->
+<!-- 1. Studio splash: plays first, fades itself out after ~3.7s -->
+<div id="splash" class="splash" role="img" aria-label="Alpha Group">
+    <svg class="splash-logo" viewBox="0 0 100 100" aria-hidden="true">
+        <rect x="6" y="6" width="88" height="88" rx="20" fill="#ffc83d"/>
+        <polygon points="50,20 82,78 18,78" fill="#0a1f1e" stroke="#0a1f1e" stroke-width="4" stroke-linejoin="round"/>
+        <polygon points="50,46 63,82 37,82" fill="#ffc83d"/>
+    </svg>
+    <div class="splash-name">Alpha Group</div>
+    <div class="splash-bar"><i></i></div>
+</div>
+
+<!-- 2. Game loading screen (hidden by game.js once connected) -->
 <div id="loading-screen" class="loading-screen">
-    <div class="loader-bg"></div>
-    <div class="loader-scanline"></div>
     <div class="loader-content">
         <div class="loader-icon">⚔️</div>
-        <h1 class="title loader-title">BATTLE ARENA</h1>
-        <p class="loader-tagline">HEROES ADVENTURE</p>
-        <div class="loader-bar-wrap">
-            <div id="loader-bar" class="loader-bar"></div>
-        </div>
-        <p class="loader-text">ALMOST THERE...</p>
+        <h1 class="title">BATTLE ARENA</h1>
+        <p class="loader-tagline">Connecting to the arena…</p>
+        <div class="loader-bar-wrap"><div id="loader-bar" class="loader-bar"></div></div>
+        <p class="loader-text">Almost there</p>
     </div>
 </div>
 
 <div id="screen-start" class="screen active">
     <div class="brand-tag">
-        <span class="brand-tag-line"></span>
-        <span class="brand-tag-text">ALPHA GROUP</span>
-        <span class="brand-tag-line"></span>
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+            <rect x="6" y="6" width="88" height="88" rx="20" fill="#ffc83d"/>
+            <polygon points="50,20 82,78 18,78" fill="#0a1f1e" stroke="#0a1f1e" stroke-width="4" stroke-linejoin="round"/>
+            <polygon points="50,46 63,82 37,82" fill="#ffc83d"/>
+        </svg>
+        <span class="brand-tag-text">Alpha Group</span>
     </div>
     <h1 class="title">BATTLE ARENA</h1>
-    <p class="subtitle">ENTER THE ARENA. BECOME THE LEGEND.</p>
+    <p class="subtitle">Outlast everyone. Own the arena.</p>
     <div class="menu">
-        <button id="btn-play" class="btn btn-primary">PLAY</button>
-        <button id="btn-howto" class="btn">HOW TO PLAY</button>
-        <button id="btn-settings" class="btn">SETTINGS</button>
-        <button id="btn-about" class="btn">ABOUT</button>
+        <button id="btn-play" class="btn btn-primary">Play</button>
+        <button id="btn-howto" class="btn">How to play</button>
+        <button id="btn-settings" class="btn">Settings</button>
+        <button id="btn-about" class="btn">About</button>
     </div>
 </div>
 
 <div id="screen-howto" class="screen">
-    <h2 class="screen-heading">HOW TO PLAY</h2>
+    <h2 class="screen-heading">How to play</h2>
     <div class="panel howto-box">
-        <p><strong>Move:</strong> WASD / Arrow Keys / Left Joystick (mobile)</p>
-        <p><strong>Aim:</strong> Mouse / Right Joystick (mobile)</p>
-        <p><strong>Shoot:</strong> Left Click / Fire Button (mobile)</p>
-        <p><strong>Reload:</strong> R key / Reload Button (mobile)</p>
-        <p><strong>Goal:</strong> Be the last player alive!</p>
+        <p><strong>Move:</strong> WASD / arrow keys / left joystick</p>
+        <p><strong>Aim:</strong> mouse / right joystick</p>
+        <p><strong>Shoot:</strong> left click / hold the aim joystick</p>
+        <p><strong>Reload:</strong> R key / R button</p>
+        <p><strong>Goal:</strong> be the last player standing</p>
     </div>
-    <button class="btn back-btn" data-back="screen-start">BACK</button>
+    <button class="btn back-btn" data-back="screen-start">Back</button>
 </div>
 
 <div id="screen-settings" class="screen">
-    <h2 class="screen-heading">SETTINGS</h2>
-    <div class="panel howto-box">
-        <p>Sound and graphics settings coming soon.</p>
-    </div>
-    <button class="btn back-btn" data-back="screen-start">BACK</button>
+    <h2 class="screen-heading">Settings</h2>
+    <div class="panel howto-box"><p>Sound and graphics options are coming soon.</p></div>
+    <button class="btn back-btn" data-back="screen-start">Back</button>
 </div>
 
 <div id="screen-about" class="screen">
-    <h2 class="screen-heading">ABOUT</h2>
-
+    <h2 class="screen-heading">About</h2>
     <div class="panel about-section">
-        <div class="about-title">BATTLE ARENA</div>
-
+        <div class="about-title">Battle Arena</div>
         <div class="about-info">
-            <div>
-                <span>Game</span>
-                <strong>Battle Arena</strong>
-            </div>
-
-            <div>
-                <span>Developed by</span>
-                <strong>Avinash Surwase</strong>
-            </div>
-
-            <div>
-                <span>Owned by</span>
-                <strong>Alpha Group</strong>
-            </div>
-
-            <div>
-                <span>Version</span>
-                <strong>1.0</strong>
-            </div>
+            <div><span>Developer</span><strong>Avinash Surwase</strong></div>
+            <div><span>Publisher</span><strong>Alpha Group</strong></div>
+            <div><span>Version</span><strong>1.0</strong></div>
         </div>
     </div>
-
-    <button class="btn back-btn" data-back="screen-start">BACK</button>
+    <button class="btn back-btn" data-back="screen-start">Back</button>
 </div>
 
-<!-- ROOM SIZE SCREEN -->
 <div id="screen-room-size" class="screen">
-    <h2 class="screen-heading">SELECT ROOM SIZE</h2>
-
+    <h2 class="screen-heading">Pick a room size</h2>
     <div class="menu">
-        <button class="btn btn-primary room-size-btn" data-size="2">2 PLAYERS</button>
-        <button class="btn btn-primary room-size-btn" data-size="4">4 PLAYERS</button>
-        <button class="btn btn-primary room-size-btn" data-size="6">6 PLAYERS</button>
+        <button class="btn btn-primary room-size-btn" data-size="2">2 players</button>
+        <button class="btn btn-primary room-size-btn" data-size="4">4 players</button>
+        <button class="btn btn-primary room-size-btn" data-size="6">6 players</button>
     </div>
-
-    <button class="btn back-btn" data-back="screen-start">BACK</button>
+    <button class="btn back-btn" data-back="screen-start">Back</button>
 </div>
 
-<!-- CHARACTER SELECTION SCREEN -->
 <div id="screen-character" class="screen">
-
-    <h2 class="screen-heading">SELECT CHARACTER</h2>
-
+    <h2 class="screen-heading">Choose your fighter</h2>
     <div class="character-grid">
-
-        <!-- Available Characters -->
-
-        <button class="character-card selected"
-                data-character="penguin"
-                data-available="true">
-            <span class="card-corner tl"></span><span class="card-corner tr"></span><span class="card-corner bl"></span><span class="card-corner br"></span>
-            <div class="character-preview">🐧</div>
-            <div class="character-name">Penguin</div>
-            <div class="character-status">DEFAULT</div>
-        </button>
-
-        <button class="character-card"
-                data-character="bear"
-                data-available="true">
-            <span class="card-corner tl"></span><span class="card-corner tr"></span><span class="card-corner bl"></span><span class="card-corner br"></span>
-            <div class="character-preview">🐻</div>
-            <div class="character-name">Bear</div>
-            <div class="character-status">FREE</div>
-        </button>
-
-        <button class="character-card"
-                data-character="fox"
-                data-available="true">
-            <span class="card-corner tl"></span><span class="card-corner tr"></span><span class="card-corner bl"></span><span class="card-corner br"></span>
-            <div class="character-preview">🦊</div>
-            <div class="character-name">Fox</div>
-            <div class="character-status">FREE</div>
-        </button>
-
-        <button class="character-card"
-                data-character="wolf"
-                data-available="true">
-            <span class="card-corner tl"></span><span class="card-corner tr"></span><span class="card-corner bl"></span><span class="card-corner br"></span>
-            <div class="character-preview">🐺</div>
-            <div class="character-name">Wolf</div>
-            <div class="character-status">FREE</div>
-        </button>
-
-        <button class="character-card"
-                data-character="horse"
-                data-available="true">
-            <span class="card-corner tl"></span><span class="card-corner tr"></span><span class="card-corner bl"></span><span class="card-corner br"></span>
-            <div class="character-preview">🐴</div>
-            <div class="character-name">Horse</div>
-            <div class="character-status">FREE</div>
-        </button>
-
-        <!-- Coming Soon Characters -->
-
-        <button class="character-card locked"
-                data-character="panda"
-                data-available="false">
-            <span class="card-corner tl"></span><span class="card-corner tr"></span><span class="card-corner bl"></span><span class="card-corner br"></span>
-            <div class="character-preview">🐼</div>
-            <div class="character-name">Panda</div>
-            <div class="character-status">COMING SOON</div>
-        </button>
-
-        <button class="character-card locked"
-                data-character="lion"
-                data-available="false">
-            <span class="card-corner tl"></span><span class="card-corner tr"></span><span class="card-corner bl"></span><span class="card-corner br"></span>
-            <div class="character-preview">🦁</div>
-            <div class="character-name">Lion</div>
-            <div class="character-status">COMING SOON</div>
-        </button>
-
-        <button class="character-card locked"
-                data-character="tiger"
-                data-available="false">
-            <span class="card-corner tl"></span><span class="card-corner tr"></span><span class="card-corner bl"></span><span class="card-corner br"></span>
-            <div class="character-preview">🐯</div>
-            <div class="character-name">Tiger</div>
-            <div class="character-status">COMING SOON</div>
-        </button>
-
-        <button class="character-card locked"
-                data-character="eagle"
-                data-available="false">
-            <span class="card-corner tl"></span><span class="card-corner tr"></span><span class="card-corner bl"></span><span class="card-corner br"></span>
-            <div class="character-preview">🦅</div>
-            <div class="character-name">Eagle</div>
-            <div class="character-status">COMING SOON</div>
-        </button>
-
-        <button class="character-card locked" data-character="dragon" data-available="false">
-            <span class="card-corner tl"></span><span class="card-corner tr"></span><span class="card-corner bl"></span><span class="card-corner br"></span>
-            <div class="character-preview">🐉</div>
-            <div class="character-name">Dragon</div>
-            <div class="character-status">COMING SOON</div>
-        </button>
-
+        <button class="character-card selected" data-character="penguin" data-available="true"><div class="character-preview">🐧</div><div class="character-name">Penguin</div><div class="character-status">Default</div></button>
+        <button class="character-card" data-character="bear" data-available="true"><div class="character-preview">🐻</div><div class="character-name">Bear</div><div class="character-status">Free</div></button>
+        <button class="character-card" data-character="fox" data-available="true"><div class="character-preview">🦊</div><div class="character-name">Fox</div><div class="character-status">Free</div></button>
+        <button class="character-card" data-character="wolf" data-available="true"><div class="character-preview">🐺</div><div class="character-name">Wolf</div><div class="character-status">Free</div></button>
+        <button class="character-card" data-character="horse" data-available="true"><div class="character-preview">🐴</div><div class="character-name">Horse</div><div class="character-status">Free</div></button>
+        <button class="character-card locked" data-character="panda" data-available="false"><div class="character-preview">🐼</div><div class="character-name">Panda</div><div class="character-status">Coming soon</div></button>
+        <button class="character-card locked" data-character="lion" data-available="false"><div class="character-preview">🦁</div><div class="character-name">Lion</div><div class="character-status">Coming soon</div></button>
+        <button class="character-card locked" data-character="tiger" data-available="false"><div class="character-preview">🐯</div><div class="character-name">Tiger</div><div class="character-status">Coming soon</div></button>
+        <button class="character-card locked" data-character="eagle" data-available="false"><div class="character-preview">🦅</div><div class="character-name">Eagle</div><div class="character-status">Coming soon</div></button>
+        <button class="character-card locked" data-character="dragon" data-available="false"><div class="character-preview">🐉</div><div class="character-name">Dragon</div><div class="character-status">Coming soon</div></button>
     </div>
-
     <div class="character-actions">
-        <button class="btn back-btn" data-back="screen-room-size">BACK</button>
-        <button id="btn-character-continue" class="btn btn-primary">CONTINUE</button>
+        <button class="btn back-btn" data-back="screen-room-size">Back</button>
+        <button id="btn-character-continue" class="btn btn-primary">Continue</button>
     </div>
-
 </div>
 
 <div id="screen-name" class="screen">
-    <h2 class="screen-heading">ENTER YOUR NAME</h2>
+    <h2 class="screen-heading">What's your name?</h2>
     <label for="input-name" class="sr-only">Player name</label>
     <input id="input-name" class="name-input" maxlength="16" placeholder="Your name" autocomplete="off" />
-    <button id="btn-join" class="btn btn-primary">JOIN GAME</button>
-    <button class="btn back-btn" data-back="screen-start">BACK</button>
+    <p id="name-error" class="name-error" role="alert"></p>
+    <button id="btn-join" class="btn btn-primary">Join game</button>
+    <button class="btn back-btn" data-back="screen-start">Back</button>
 </div>
 
 <div id="screen-waiting" class="screen">
-    <div class="waiting-pulse"></div>
-    <h2 id="waiting-title" class="screen-heading">FINDING PLAYERS...</h2>
+    <h2 id="waiting-title" class="screen-heading">Finding players…</h2>
     <div id="player-count" class="player-count">Players: 0/4</div>
     <ul id="waiting-list" class="waiting-list"></ul>
+    <div id="wait-timer" class="wait-timer">
+        <div class="wait-timer-bar"><i id="wait-timer-fill"></i></div>
+        <p id="wait-timer-text"></p>
+    </div>
+    <button id="btn-cancel-wait" class="btn back-btn">Cancel</button>
 </div>
 
 <div id="screen-countdown" class="screen">
-    <div class="countdown-ring">
-        <div id="countdown-number" class="countdown-number">3</div>
-    </div>
-    <p class="countdown-label">GET READY!</p>
+    <div class="countdown-ring"><div id="countdown-number" class="countdown-number">3</div></div>
+    <p class="countdown-label">Get ready</p>
 </div>
 
 <div id="screen-game" class="screen">
     <canvas id="game-canvas"></canvas>
-
-    <button id="btn-leave-match" class="game-exit-btn">EXIT</button>
-
+    <button id="btn-leave-match" class="game-exit-btn">Exit</button>
+    <div id="spectate-bar" class="spectate-bar">
+        <div class="spectate-msg">You were eliminated</div>
+        <div class="spectate-row">
+            <button id="btn-spec-prev" class="spectate-btn" aria-label="Previous player">&#8249;</button>
+            <div id="spectate-name" class="spectate-name">Spectating</div>
+            <button id="btn-spec-next" class="spectate-btn" aria-label="Next player">&#8250;</button>
+        </div>
+    </div>
     <div class="hud">
-        <div class="hud-top-left">
-            <div class="hp-bar-wrap">
-                <div id="hp-bar" class="hp-bar"></div>
-            </div>
+        <div id="hud-top-left" class="hud-top-left">
+            <div class="hp-bar-wrap"><div id="hp-bar" class="hp-bar"></div></div>
             <div id="hp-text" class="hp-text">100 / 100</div>
         </div>
-
         <div class="hud-top-right">
             <div id="timer" class="timer">00:00</div>
             <div id="alive-count" class="alive-count">PLAYERS: 0</div>
         </div>
-
-        <div class="hud-bottom-right">
-            <div id="ammo-text" class="ammo-text">20 / 60</div>
-        </div>
-
+        <div class="hud-bottom-right"><div id="ammo-text" class="ammo-text">20 / 60</div></div>
         <div id="leaderboard" class="leaderboard"></div>
-
         <div id="kill-feed" class="kill-feed"></div>
     </div>
-
     <div id="mobile-controls" class="mobile-controls">
-        <div id="joystick-move" class="joystick">
-            <div class="joystick-knob" id="joystick-move-knob"></div>
-        </div>
-        <div class="mobile-action-buttons">
-            <button id="btn-reload-mobile" class="mobile-btn">R</button>
-        </div>
-        <div id="joystick-aim" class="joystick joystick-aim">
-            <div class="joystick-knob" id="joystick-aim-knob"></div>
-        </div>
+        <div id="joystick-move" class="joystick"><div class="joystick-knob" id="joystick-move-knob"></div></div>
+        <div class="mobile-action-buttons"><button id="btn-reload-mobile" class="mobile-btn">R</button></div>
+        <div id="joystick-aim" class="joystick joystick-aim"><div class="joystick-knob" id="joystick-aim-knob"></div></div>
     </div>
 </div>
 
@@ -286,340 +179,28 @@
     </div>
     <div id="result-list" class="result-list"></div>
     <div class="menu">
-        <button id="btn-play-again" class="btn btn-primary">PLAY AGAIN</button>
-        <button id="btn-main-menu" class="btn" data-back="screen-start">MAIN MENU</button>
+        <button id="btn-play-again" class="btn btn-primary">Play again</button>
+        <button id="btn-main-menu" class="btn" data-back="screen-start">Main menu</button>
     </div>
 </div>
 
-<script src="js/game.js"></script>
+<script>
+    // Step 1 -> 2: when the studio splash finishes, remove it and tell game.js to start the loading screen
+    (function () {
+      var splash = document.getElementById('splash');
+      var done = false;
+      function finish() {
+        if (done) return;
+        done = true;
+        if (splash) splash.remove();
+        window.dispatchEvent(new Event('splash-done'));
+      }
+      splash.addEventListener('animationend', function (e) {
+        if (e.animationName === 'splashOut') finish();
+      });
+      setTimeout(finish, 5000); // safety net if animations are disabled
+    })();
+</script>
+<script src="js/game.js?v=6"></script>
 </body>
 </html>
-
-
-
-<!--
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Battle Arena</title>
-    <link rel="stylesheet" href="css/style.css" />
-</head>
-<body>
-
-&lt;!&ndash;front loading screen&ndash;&gt;
-<div id="loading-screen" class="loading-screen">
-    <div class="loader-bg"></div>
-    <div class="loader-content">
-        <div class="loader-icon">⚔️</div>
-        <h1 class="title loader-title">BATTLE ARENA</h1>
-        <p class="loader-tagline">HEROES ADVENTURE</p>
-&lt;!&ndash;        <p class="loader-tagline">Alpha Group</p>&ndash;&gt;
-        <div class="loader-bar-wrap">
-            <div id="loader-bar" class="loader-bar"></div>
-        </div>
-        <p class="loader-text">ALMOST THERE...</p>
-    </div>
-</div>
-
-<div id="screen-start" class="screen active">
-    <div class="brand-tag">
-        <span class="brand-tag-line"></span>
-        <span class="brand-tag-text">ALPHA GROUP</span>
-        <span class="brand-tag-line"></span>
-    </div>
-    <h1 class="title">BATTLE ARENA</h1>
-    <div class="menu">
-        <button id="btn-play" class="btn btn-primary">PLAY</button>
-        <button id="btn-howto" class="btn">HOW TO PLAY</button>
-        <button id="btn-settings" class="btn">SETTINGS</button>
-        <button id="btn-about" class="btn">ABOUT</button>
-    </div>
-</div>
-&lt;!&ndash;<div id="screen-start" class="screen active">
-    <p>Alpha Group</p>
-    <h1 class="title">BATTLE ARENA</h1>
-    <div class="menu">
-        <button id="btn-play" class="btn btn-primary">PLAY</button>
-        <button id="btn-howto" class="btn">HOW TO PLAY</button>
-        <button id="btn-settings" class="btn">SETTINGS</button>
-        <button id="btn-about" class="btn">ABOUT</button>
-    </div>
-</div>&ndash;&gt;
-
-<div id="screen-howto" class="screen">
-    <h2>HOW TO PLAY</h2>
-    <div class="howto-box">
-        <p><strong>Move:</strong> WASD / Arrow Keys / Left Joystick (mobile)</p>
-        <p><strong>Aim:</strong> Mouse / Right Joystick (mobile)</p>
-        <p><strong>Shoot:</strong> Left Click / Fire Button (mobile)</p>
-        <p><strong>Reload:</strong> R key / Reload Button (mobile)</p>
-        <p><strong>Goal:</strong> Be the last player alive!</p>
-    </div>
-    <button class="btn back-btn" data-back="screen-start">BACK</button>
-</div>
-
-<div id="screen-settings" class="screen">
-    <h2>SETTINGS</h2>
-    <div class="howto-box">
-        <p>Sound and graphics settings coming soon.</p>
-    </div>
-    <button class="btn back-btn" data-back="screen-start">BACK</button>
-</div>
-
-<div id="screen-about" class="screen">
-    <h2>ABOUT</h2>
-
-    <div class="about-section">
-        <div class="about-title">BATTLE ARENA</div>
-
-        <div class="about-info">
-            <div>
-                <span>Game</span>
-                <strong>Battle Arena</strong>
-            </div>
-
-            <div>
-                <span>Developed by</span>
-                <strong>Avinash Surwase</strong>
-            </div>
-
-            <div>
-                <span>Owned by</span>
-                <strong>Alpha Group</strong>
-            </div>
-
-            <div>
-                <span>Version</span>
-                <strong>1.0</strong>
-            </div>
-        </div>
-    </div>
-
-    <button class="btn back-btn" data-back="screen-start">BACK</button>
-</div>
-
-&lt;!&ndash; ROOM SIZE SCREEN &ndash;&gt;
-<div id="screen-room-size" class="screen">
-    <h2>SELECT ROOM SIZE</h2>
-
-    <div class="menu">
-        <button class="btn btn-primary room-size-btn" data-size="2">2 PLAYERS</button>
-        <button class="btn btn-primary room-size-btn" data-size="4">4 PLAYERS</button>
-        <button class="btn btn-primary room-size-btn" data-size="6">6 PLAYERS</button>
-    </div>
-
-    <button class="btn back-btn" data-back="screen-start">BACK</button>
-</div>
-
-&lt;!&ndash; CHARACTER SELECTION SCREEN (now a sibling, not nested) &ndash;&gt;
-<div id="screen-character" class="screen">
-
-    <h2>SELECT CHARACTER</h2>
-
-    <div class="character-grid">
-
-        &lt;!&ndash; Available Characters &ndash;&gt;
-
-        <button class="character-card selected"
-                data-character="penguin"
-                data-available="true">
-
-            <div class="character-preview">🐧</div>
-            <div class="character-name">Penguin</div>
-            <div class="character-status">DEFAULT</div>
-
-        </button>
-
-
-        <button class="character-card"
-                data-character="bear"
-                data-available="true">
-
-            <div class="character-preview">🐻</div>
-            <div class="character-name">Bear</div>
-            <div class="character-status">FREE</div>
-
-        </button>
-
-
-        <button class="character-card"
-                data-character="fox"
-                data-available="true">
-
-            <div class="character-preview">🦊</div>
-            <div class="character-name">Fox</div>
-            <div class="character-status">FREE</div>
-
-        </button>
-
-
-        <button class="character-card"
-                data-character="wolf"
-                data-available="true">
-
-            <div class="character-preview">🐺</div>
-            <div class="character-name">Wolf</div>
-            <div class="character-status">FREE</div>
-
-        </button>
-
-
-        <button class="character-card"
-                data-character="horse"
-                data-available="true">
-
-            <div class="character-preview">🐴</div>
-            <div class="character-name">Horse</div>
-            <div class="character-status">FREE</div>
-
-        </button>
-
-
-        &lt;!&ndash; Coming Soon Characters &ndash;&gt;
-
-        <button class="character-card locked"
-                data-character="panda"
-                data-available="false">
-
-            <div class="character-preview">🐼</div>
-            <div class="character-name">Panda</div>
-            <div class="character-status">COMING SOON</div>
-
-        </button>
-
-
-        <button class="character-card locked"
-                data-character="lion"
-                data-available="false">
-
-            <div class="character-preview">🦁</div>
-            <div class="character-name">Lion</div>
-            <div class="character-status">COMING SOON</div>
-
-        </button>
-
-
-        <button class="character-card locked"
-                data-character="tiger"
-                data-available="false">
-
-            <div class="character-preview">🐯</div>
-            <div class="character-name">Tiger</div>
-            <div class="character-status">COMING SOON</div>
-
-        </button>
-
-
-        <button class="character-card locked"
-                data-character="eagle"
-                data-available="false">
-
-            <div class="character-preview">🦅</div>
-            <div class="character-name">Eagle</div>
-            <div class="character-status">COMING SOON</div>
-
-        </button>
-
-
-        <button class="character-card locked" data-character="dragon" data-available="false">
-
-            <div class="character-preview">🐉</div>
-            <div class="character-name">Dragon</div>
-            <div class="character-status">COMING SOON</div>
-
-        </button>
-
-    </div>
-
-    <div class="character-actions">
-
-        <button class="btn back-btn"
-                data-back="screen-room-size">
-            BACK
-        </button>
-
-        <button id="btn-character-continue"
-                class="btn btn-primary">
-            CONTINUE
-        </button>
-
-    </div>
-
-</div>
-
-<div id="screen-name" class="screen">
-    <h2>ENTER YOUR NAME</h2>
-    <label for="input-name"></label><input id="input-name" class="name-input" maxlength="16" placeholder="Your name" autocomplete="off" />
-    <button id="btn-join" class="btn btn-primary">JOIN GAME</button>
-    <button class="btn back-btn" data-back="screen-start">BACK</button>
-</div>
-
-<div id="screen-waiting" class="screen">
-    <h2 id="waiting-title">FINDING PLAYERS...</h2>
-    <div id="player-count" class="player-count">Players: 0/4</div>
-    <ul id="waiting-list" class="waiting-list"></ul>
-</div>
-
-<div id="screen-countdown" class="screen">
-    <div id="countdown-number" class="countdown-number">3</div>
-</div>
-
-<div id="screen-game" class="screen">
-    <canvas id="game-canvas"></canvas>
-
-    <button id="btn-leave-match" class="game-exit-btn">EXIT</button>
-
-    <div class="hud">
-        <div class="hud-top-left">
-            <div class="hp-bar-wrap">
-                <div id="hp-bar" class="hp-bar"></div>
-            </div>
-            <div id="hp-text" class="hp-text">100 / 100</div>
-        </div>
-
-        <div class="hud-top-right">
-            <div id="timer" class="timer">00:00</div>
-            <div id="alive-count" class="alive-count">PLAYERS: 0</div>
-        </div>
-
-        <div class="hud-bottom-right">
-            <div id="ammo-text" class="ammo-text">20 / 60</div>
-        </div>
-
-        <div id="leaderboard" class="leaderboard"></div>
-
-        <div id="kill-feed" class="kill-feed"></div>
-    </div>
-
-    <div id="mobile-controls" class="mobile-controls">
-        <div id="joystick-move" class="joystick">
-            <div class="joystick-knob" id="joystick-move-knob"></div>
-        </div>
-        <div class="mobile-action-buttons">
-            <button id="btn-reload-mobile" class="mobile-btn">R</button>
-        </div>
-        <div id="joystick-aim" class="joystick joystick-aim">
-            <div class="joystick-knob" id="joystick-aim-knob"></div>
-        </div>
-    </div>
-</div>
-
-<div id="screen-result" class="screen">
-    <h1 id="result-title" class="result-title">VICTORY!</h1>
-    <div id="result-sub" class="result-sub"></div>
-    <div class="result-stats">
-        <div id="result-kills">Kills: 0</div>
-        <div id="result-time">Survival Time: 00:00</div>
-    </div>
-    <div id="result-list" class="result-list"></div>
-    <div class="menu">
-        <button id="btn-play-again" class="btn btn-primary">PLAY AGAIN</button>
-        <button id="btn-main-menu" class="btn" data-back="screen-start">MAIN MENU</button>
-    </div>
-</div>
-
-<script src="js/game.js"></script>
-</body>
-</html>-->
