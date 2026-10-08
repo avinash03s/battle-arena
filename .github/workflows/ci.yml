@@ -6,12 +6,11 @@ name: Battle Arena CI
 # Decide when the CI pipeline should run
 on:
 
-  # Run the pipeline whenever code is pushed to the master branch
+  # Run CI whenever code is pushed to any branch
+  # This allows us to test feature branches before creating a PR
   push:
-    branches:
-      - master
 
-  # Also run the pipeline when a Pull Request is created/updated
+  # Run CI when a Pull Request is created or updated
   # and the target branch is master
   pull_request:
     branches:
