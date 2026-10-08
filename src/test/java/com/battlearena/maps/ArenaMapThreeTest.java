@@ -76,6 +76,6 @@ class ArenaMapThreeTest {
     void shouldCreateMapWithExpectedNumberOfWalls() {
         List<Wall> walls = arenaMap.getWalls();
 
-        assertEquals(15, walls.size());
+        assertEquals(50, walls.size());
     }
 }

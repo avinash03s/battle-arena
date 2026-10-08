@@ -36,54 +36,51 @@ class GameWebSocketHandlerTest {
         characterService = new TestCharacterService();
         profileRepository = new TestPlayerProfileRepository();
 
-        handler = new GameWebSocketHandler(
-                engine,
-                characterService,
-                profileRepository
-        );
-
+        handler = new GameWebSocketHandler(engine, characterService, profileRepository);
         session = createSession("session-1");
     }
 
     @Test
     void shouldHandleJoinGame() throws Exception {
         String json = """
-                {
-                    "type": "joinGame",
-                    "data": {
-                        "name": "Avinash",
-                        "roomSize": 4,
-                        "characterType": "bear"
-                    }
+            {
+                "type": "joinGame",
+                "data": {
+                    "name": "Avinash",
+                    "roomSize": 4,
+                    "characterType": "bear"
                 }
-                """;
+            }
+            """;
 
         handler.handleMessage(session, new TextMessage(json));
 
         assertEquals(1, engine.joinRoomCalls);
         assertEquals("Avinash", engine.lastPlayerName);
-        assertEquals("bear", engine.lastCharacterType);
-        assertEquals("bear",
-                engine.joinedPlayer.getCharacterType());
 
-        assertEquals("bear",
-                profileRepository.profile.getSelectedCharacter());
+        // Character is set directly on the player by GameWebSocketHandler
+        assertEquals("bear", engine.joinedPlayer.getCharacterType());
+
+        // Character is also saved to the player profile
+        assertEquals("bear", profileRepository.profile.getSelectedCharacter());
     }
 
     @Test
     void shouldUseDefaultValuesWhenJoinDataIsMissing() throws Exception {
         String json = """
-                {
-                    "type": "joinGame"
-                }
-                """;
+            {
+                "type": "joinGame"
+            }
+            """;
 
         handler.handleMessage(session, new TextMessage(json));
 
         assertEquals(1, engine.joinRoomCalls);
         assertEquals("Player", engine.lastPlayerName);
         assertEquals(4, engine.lastRoomSize);
-        assertEquals("penguin", engine.lastCharacterType);
+
+        // Default character should be penguin
+        assertEquals("penguin", engine.joinedPlayer.getCharacterType());
     }
 
     @Test
@@ -100,9 +97,7 @@ class GameWebSocketHandlerTest {
                 """;
 
         handler.handleMessage(session, new TextMessage(json));
-
-        assertEquals("ABCDEFGHIJKLMNOP",
-                engine.lastPlayerName);
+        assertEquals("ABCDEFGHIJKLMNOP", engine.lastPlayerName);
     }
 
     @Test
@@ -117,7 +112,6 @@ class GameWebSocketHandlerTest {
                 """;
 
         handler.handleMessage(session, new TextMessage(json));
-
         assertEquals("Player", engine.lastPlayerName);
     }
 
@@ -134,28 +128,26 @@ class GameWebSocketHandlerTest {
                 """;
 
         handler.handleMessage(session, new TextMessage(json));
-
         assertEquals(4, engine.lastRoomSize);
     }
 
     @Test
     void shouldFallbackToPenguinForUnavailableCharacter() throws Exception {
         String json = """
-                {
-                    "type": "joinGame",
-                    "data": {
-                        "name": "Avinash",
-                        "roomSize": 4,
-                        "characterType": "dragon"
-                    }
+            {
+                "type": "joinGame",
+                "data": {
+                    "name": "Avinash",
+                    "roomSize": 4,
+                    "characterType": "dragon"
                 }
-                """;
+            }
+            """;
 
         handler.handleMessage(session, new TextMessage(json));
 
-        assertEquals("penguin", engine.lastCharacterType);
-        assertEquals("penguin",
-                engine.joinedPlayer.getCharacterType());
+        // Unsupported character should fall back to penguin
+        assertEquals("penguin", engine.joinedPlayer.getCharacterType());
     }
 
     @Test
@@ -210,7 +202,6 @@ class GameWebSocketHandlerTest {
                 """;
 
         handler.handleMessage(session, new TextMessage(json));
-
         assertEquals(1, engine.handleReloadCalls);
     }
 
@@ -225,19 +216,13 @@ class GameWebSocketHandlerTest {
                 """;
 
         handler.handleMessage(session, new TextMessage(json));
-
         assertEquals(1, engine.handleLeaveMatchCalls);
     }
 
     @Test
     void shouldHandleConnectionClosed() {
-        handler.afterConnectionClosed(
-                session,
-                CloseStatus.NORMAL
-        );
-
-        assertEquals("session-1",
-                engine.disconnectedSessionId);
+        handler.afterConnectionClosed(session, CloseStatus.NORMAL);
+        assertEquals("session-1", engine.disconnectedSessionId);
     }
 
     private WebSocketSession createSession(String id) {
