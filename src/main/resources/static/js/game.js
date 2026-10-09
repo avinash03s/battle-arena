@@ -1,7 +1,7 @@
 'use strict';
 
 /* =====================================================================
-   BATTLE ARENA — client (v7: performance + controller fixes)
+   BATTLE ARENA — client (v8: fixed crash on load + cancel + match start)
    ===================================================================== */
 
 // For the Android (Capacitor) build, set your server host, e.g. 'battle.example.com'.
@@ -13,6 +13,14 @@ const wsProtocol = (REMOTE_HOST || window.location.protocol === 'https:') ? 'wss
 const ws = new WebSocket(wsProtocol + (REMOTE_HOST || window.location.host) + '/game');
 const pendingQueue = [];
 let wsOpen = false;
+
+// ---------- Variables used by early functions (MUST be declared before first use) ----------
+let lastHpTop = -1;          // FIX: was declared far below, caused "before initialization" crash
+let hudDirty = false;
+let lastBoardSig = '';
+let lastHudAt = 0;
+let lastFrame = 0;
+let groundPattern = null;
 
 // ---------- Loading screen ----------
 function hideLoadingScreen() {
@@ -51,8 +59,7 @@ ws.addEventListener('close', () => {
   if ($('screen-game').classList.contains('active')) pushFeed('Connection lost');
 });
 
-// FIX: high-frequency messages (input/shoot) are dropped while offline instead of
-// piling up in a queue and flooding the server when the connection returns.
+// High-frequency messages (input/shoot) are dropped while offline instead of queued.
 function send(type, data) {
   const payload = JSON.stringify({ type, data: data || {} });
   if (wsOpen) ws.send(payload);
@@ -62,7 +69,11 @@ function send(type, data) {
 ws.addEventListener('message', (event) => {
   let msg;
   try { msg = JSON.parse(event.data); } catch (e) { return; }
-  handleServerMessage(msg.type, msg.data);
+  try {
+    handleServerMessage(msg.type, msg.data);
+  } catch (e) {
+    console.error('Error handling message', msg.type, e);
+  }
 });
 
 function handleServerMessage(type, data) {
@@ -142,6 +153,7 @@ function leaveMatch() {
   selfId = null;
   spectateId = null;
   gameStartTime = null;
+  lastRoom = null;
   latestState = { players: [], bullets: [] };
   resetInputState();
   showScreen('screen-start');
@@ -228,7 +240,7 @@ function onSoloWait(data) {
   $('wait-timer-text').textContent = `No opponents yet. Bots join in ${s}s`;
 }
 
-// FIX: only ever one render loop, even if gameStart arrives twice
+// Only ever one render loop, even if gameStart arrives twice
 let loopRunning = false;
 function onGameStart(data) {
   gameStartTime = data.startTime;
@@ -245,8 +257,7 @@ function onGameStart(data) {
   }
 }
 
-// FIX: state messages only store data; the HUD (DOM) is refreshed at most ~8x/sec
-let hudDirty = false;
+// State messages only store data; the HUD (DOM) is refreshed at most ~8x/sec
 function onState(data) {
   latestState = data;
   hudDirty = true;
@@ -301,7 +312,7 @@ function resizeCanvas() {
   canvas.height = window.innerHeight;
   cacheExitRect();
 }
-// FIX: measuring the Exit button every frame forced layout work; cache it instead
+// Measuring the Exit button every frame forced layout work; cache it instead
 function cacheExitRect() {
   const r = $('btn-leave-match').getBoundingClientRect();
   if (r.width) exitRect = { left: r.left, bottom: r.bottom };
@@ -309,14 +320,18 @@ function cacheExitRect() {
 }
 window.addEventListener('resize', resizeCanvas);
 window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 250));
-resizeCanvas();
 
 // ---------- Keyboard / mouse / touch ----------
+// (declared BEFORE resizeCanvas() / any function that uses them is called)
 const keys = { up: false, down: false, left: false, right: false };
 const KEYMAP = { w: 'up', arrowup: 'up', s: 'down', arrowdown: 'down', a: 'left', arrowleft: 'left', d: 'right', arrowright: 'right' };
 let mouseX = 0, mouseY = 0, aimAngle = 0, mouseDown = false, touchAiming = false;
+let lastSent = null, lastSentAt = 0;
+const smooth = new Map();
 
-// FIX: stuck keys / stuck shooting when the tab loses focus or the screen changes
+resizeCanvas();
+
+// Stuck keys / stuck shooting when the tab loses focus or the screen changes
 function resetInputState() {
   keys.up = keys.down = keys.left = keys.right = false;
   mouseDown = false;
@@ -354,7 +369,7 @@ $('btn-reload-mobile').addEventListener('click', () => send('reload'));
 $('btn-spec-prev').addEventListener('click', () => cycleSpectate(-1));
 $('btn-spec-next').addEventListener('click', () => cycleSpectate(1));
 
-// FIX: the joystick now reacts on the very first touch (not only after the finger moves)
+// The joystick reacts on the very first touch (not only after the finger moves)
 function setupJoystick(baseEl, knobEl, onMove, onEnd) {
   let baseRect = null, touchId = null;
 
@@ -405,16 +420,15 @@ setupJoystick($('joystick-aim'), $('joystick-aim-knob'),
   () => { touchAiming = false; });
 
 // ---------- Input loop (30 Hz tick) ----------
-// FIX: 'input' is only sent when something changed (plus a 150 ms heartbeat) instead of
-// 30 messages per second per player. This removes most of the network/server load.
+// 'input' is only sent when something changed (plus a 150 ms heartbeat).
 const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
-let lastSent = null, lastSentAt = 0;
 
 setInterval(() => {
   if (!selfId || isSpectating() || !$('screen-game').classList.contains('active')) return;
   const me = selfPlayer();
   if (!isTouch && me) {
-    const sp = worldToScreen(smoothPos(me).x, smoothPos(me).y);
+    const sm = smoothPos(me);
+    const sp = worldToScreen(sm.x, sm.y);
     aimAngle = Math.atan2(mouseY - sp.y, mouseX - sp.x);
   }
   const msg = { up: keys.up, down: keys.down, left: keys.left, right: keys.right, angle: aimAngle };
@@ -434,8 +448,6 @@ setInterval(() => {
 }, 1000 / 30);
 
 // ---------- Smoothing (hides network jitter so movement looks fluid) ----------
-const smooth = new Map();
-let lastFrame = 0;
 function smoothPos(p) {
   let s = smooth.get(p.id);
   if (!s) { s = { x: p.x, y: p.y }; smooth.set(p.id, s); }
@@ -459,7 +471,6 @@ function updateCamera() {
 function worldToScreen(x, y) { return { x: x - camX, y: y - camY }; }
 
 // ---------- HUD ----------
-let lastBoardSig = '';
 function updateHUD() {
   const spec = isSpectating();
   $('screen-game').classList.toggle('spectating', spec);
@@ -504,8 +515,6 @@ function updateHUD() {
    ===================================================================== */
 const INK = '#0a1f1e';
 const ROOFS = [['#ff5a47', '#e24632'], ['#2f8f8b', '#23706c'], ['#ffc83d', '#e0a91f']];
-let groundPattern = null;
-let lastHudAt = 0;
 
 function renderLoop(now) {
   if (!$('screen-game').classList.contains('active')) { loopRunning = false; return; }
@@ -548,7 +557,7 @@ function renderLoop(now) {
     drawCharacter(p.x, p.y, pl.angle, pl.characterType);
     if (mine) tri([[p.x - 7, p.y - 66], [p.x + 7, p.y - 66], [p.x, p.y - 56]], '#5ce1b9');
 
-    // FIX: stroke outline instead of shadowBlur (shadowBlur is very slow on phones)
+    // Stroke outline instead of shadowBlur (shadowBlur is very slow on phones)
     ctx.font = 'bold 13px "Barlow Semi Condensed", sans-serif';
     ctx.textAlign = 'center';
     ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineJoin = 'round';
@@ -666,7 +675,6 @@ function drawWorldWall(x, y, w, h, type) {
 }
 
 // Minimap sits under the Exit button; HP bar sits under the minimap.
-let lastHpTop = -1;
 function drawMinimap() {
   const short = window.innerHeight < 500;
   const size = short ? 90 : (isTouch ? 100 : 130);
