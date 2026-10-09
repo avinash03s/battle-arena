@@ -18,15 +18,45 @@
   }
 
   const popup = document.getElementById('install-popup');
+  const title = popup.querySelector('.install-title');
   const text = document.getElementById('install-text');
   const installBtn = document.getElementById('install-btn');
   const laterBtn = document.getElementById('install-later');
   let deferredPrompt = null;
   let splashDone = !document.getElementById('splash');
+  let installing = false;
 
   function maybeShow() {
-    if (!deferredPrompt || !splashDone) return;
+    if (!deferredPrompt || !splashDone || installing) return;
     if (sessionStorage.getItem('installDismissed')) return;
+    popup.hidden = false;
+  }
+
+  function showInstalling() {
+    installing = true;
+    title.textContent = 'Installing…';
+    text.innerHTML = '<span class="spinner"></span> Adding Battle Arena to your phone. This takes a few seconds.';
+    installBtn.style.display = 'none';
+    laterBtn.style.display = 'none';
+  }
+
+  function showInstalled() {
+    installing = false;
+    title.textContent = 'Installed!';
+    text.textContent = 'Battle Arena is ready. Tap "Open app" (or find it on your home screen). You can close this browser tab.';
+    installBtn.style.display = '';
+    installBtn.textContent = 'Open app';
+    installBtn.onclick = () => {
+      // Browsers cannot close a tab or launch an installed app from script.
+      // Best effort: try to close; otherwise leave the user on a clear message.
+      window.close();
+      setTimeout(() => {
+        text.textContent = 'Press Home, then tap the Battle Arena icon. You can close this tab.';
+        installBtn.style.display = 'none';
+      }, 300);
+    };
+    laterBtn.style.display = '';
+    laterBtn.textContent = 'Close';
     popup.hidden = false;
   }
 
@@ -43,16 +73,15 @@
 
   installBtn.addEventListener('click', async () => {
     if (!deferredPrompt) return;
+    showInstalling();
     deferredPrompt.prompt();
     const choice = await deferredPrompt.userChoice;
     deferredPrompt = null;
-    if (choice.outcome === 'accepted') {
-      text.textContent = 'Installed! Open Battle Arena from your home screen.';
-      installBtn.style.display = 'none';
-      laterBtn.textContent = 'OK';
-    } else {
+    if (choice.outcome !== 'accepted') {
+      installing = false;
       popup.hidden = true;
     }
+    // If accepted, stay on "Installing…" until the appinstalled event fires
   });
 
   laterBtn.addEventListener('click', () => {
@@ -60,5 +89,8 @@
     popup.hidden = true;
   });
 
-  window.addEventListener('appinstalled', () => { deferredPrompt = null; });
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    showInstalled();
+  });
 })();
