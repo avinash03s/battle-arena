@@ -12,8 +12,10 @@ import org.springframework.web.socket.WebSocketSession;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -52,8 +54,13 @@ public class GameEngineServiceImpl implements GameEngine {
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final ScheduledExecutorService countdownExecutor = Executors.newScheduledThreadPool(4);
-    private final ExecutorService broadcastExecutor = Executors.newFixedThreadPool(4);
+    // FIX: bigger pool so one slow phone cannot starve everyone else's sends
+    private final ExecutorService broadcastExecutor = Executors.newFixedThreadPool(16);
     private final Random random = new Random();
+
+    // FIX: sessions that are still busy sending a "state" frame. A slow client simply
+    // skips frames instead of building an ever-growing queue (which caused the lag).
+    private final Set<String> stateSendBusy = ConcurrentHashMap.newKeySet();
 
     // Solo-wait countdown task per room (cancelled if a real player joins)
     private final Map<String, ScheduledFuture<?>> soloWaitTasks = new ConcurrentHashMap<>();
@@ -118,6 +125,7 @@ public class GameEngineServiceImpl implements GameEngine {
     /** Raw socket disconnect: remove the player, notify others, check for a winner. */
     @Override
     public void handleDisconnect(String sessionId) {
+        stateSendBusy.remove(sessionId);
         Room room = roomRepository.getBySessionId(sessionId);
         roomRepository.removeSession(sessionId);
         if (room == null) return;
@@ -397,7 +405,12 @@ public class GameEngineServiceImpl implements GameEngine {
     public void tick() {
         for (Room room : roomRepository.getAllRooms()) {
             if (room.getState() != Room.State.PLAYING) continue;
-            tickRoom(room);
+            try {
+                tickRoom(room);
+            } catch (Exception e) {
+                // FIX: one broken room must never stop the loop for every other room
+                e.printStackTrace();
+            }
         }
     }
 
@@ -484,7 +497,10 @@ public class GameEngineServiceImpl implements GameEngine {
     /** Moves bullets, handles wall/player hits, damage, kills and bullet expiry. */
     private void moveBullets(Room room) {
         List<Wall> walls = getWallsForRoom(room);
-        List<Bullet> remaining = new ArrayList<>();
+        // FIX: previously the list was cleared and refilled at the end of the tick, which
+        // silently deleted any bullet a player fired in the middle of the tick ("shots not
+        // registering"). Now only the bullets that really finished are removed.
+        Set<Bullet> finished = Collections.newSetFromMap(new IdentityHashMap<>());
 
         for (Bullet b : room.getBullets()) {
             double prevX = b.getX();
@@ -532,13 +548,14 @@ public class GameEngineServiceImpl implements GameEngine {
                 }
             }
 
-            if (!hit && b.getLife() > 0) {
-                remaining.add(b);
+            if (hit || b.getLife() <= 0) {
+                finished.add(b);
             }
         }
 
-        room.getBullets().clear();
-        room.getBullets().addAll(remaining);
+        if (!finished.isEmpty()) {
+            room.getBullets().removeIf(finished::contains);
+        }
     }
 
     /** True if a player can stand at (x, y): inside the map and not touching any wall. */
@@ -663,8 +680,8 @@ public class GameEngineServiceImpl implements GameEngine {
         List<Map<String, Object>> bulletsInfo = new ArrayList<>();
         for (Bullet b : room.getBullets()) {
             Map<String, Object> m = new HashMap<>();
-            m.put("x", b.getX());
-            m.put("y", b.getY());
+            m.put("x", round1(b.getX()));
+            m.put("y", round1(b.getY()));
             bulletsInfo.add(m);
         }
 
@@ -676,13 +693,23 @@ public class GameEngineServiceImpl implements GameEngine {
         broadcast(room, "state", payload);
     }
 
+    // FIX: round numbers before sending. Full doubles like 123.45600000000002 make every
+    // frame much bigger; 1 decimal is plenty for a 2D game and cuts bandwidth a lot.
+    private static double round1(double v) {
+        return Math.round(v * 10.0) / 10.0;
+    }
+
+    private static double round2(double v) {
+        return Math.round(v * 100.0) / 100.0;
+    }
+
     private static Map<String, Object> getStringObjectMap(Player p) {
         Map<String, Object> m = new HashMap<>();
         m.put("id", p.getId());
         m.put("name", p.getName());
-        m.put("x", p.getX());
-        m.put("y", p.getY());
-        m.put("angle", p.getAngle());
+        m.put("x", round1(p.getX()));
+        m.put("y", round1(p.getY()));
+        m.put("angle", round2(p.getAngle()));
         m.put("health", p.getHealth());
         m.put("alive", p.isAlive());
         m.put("kills", p.getKills());
@@ -694,28 +721,41 @@ public class GameEngineServiceImpl implements GameEngine {
         return m;
     }
 
-    /** Sends a message to every connected (non-bot) player in the room. */
+    /**
+     * Sends a message to every connected (non-bot) player in the room.
+     * "state" frames are droppable: if a client is still receiving the previous frame we skip it,
+     * so a slow phone never builds up a backlog. All other messages (countdown, gameStart,
+     * playerEliminated, matchResult...) are always delivered.
+     */
     @Override
     public void broadcast(Room room, String type, Object data) {
         Map<String, Object> envelope = new HashMap<>();
         envelope.put("type", type);
         envelope.put("data", data);
+        final boolean droppable = "state".equals(type);
         try {
             String json = mapper.writeValueAsString(envelope);
             TextMessage message = new TextMessage(json);
             for (Player p : room.getPlayers().values()) {
-                WebSocketSession session = p.getSession();
-                if (session != null && session.isOpen()) {
-                    broadcastExecutor.submit(() -> {
-                        try {
-                            synchronized (session) {
-                                session.sendMessage(message);
-                            }
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    });
+                final WebSocketSession session = p.getSession();
+                if (session == null || !session.isOpen()) continue;
+
+                final String sid = session.getId();
+                if (droppable && !stateSendBusy.add(sid)) {
+                    continue; // still sending the previous frame: skip this one
                 }
+
+                broadcastExecutor.submit(() -> {
+                    try {
+                        synchronized (session) {
+                            session.sendMessage(message);
+                        }
+                    } catch (Exception e) {
+                        // client went away or timed out; the disconnect handler cleans up
+                    } finally {
+                        if (droppable) stateSendBusy.remove(sid);
+                    }
+                });
             }
         } catch (Exception e) {
             e.printStackTrace();

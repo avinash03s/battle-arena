@@ -1,7 +1,7 @@
 'use strict';
 
 /* =====================================================================
-   BATTLE ARENA — client
+   BATTLE ARENA — client (v7: performance + controller fixes)
    ===================================================================== */
 
 // For the Android (Capacitor) build, set your server host, e.g. 'battle.example.com'.
@@ -22,9 +22,6 @@ function hideLoadingScreen() {
   setTimeout(() => loader.remove(), 400);
 }
 
-// Startup order: 1) studio splash  2) Battle Arena loading screen  3) main menu
-// The loading bar only starts after the splash ends, and the menu appears
-// only when the bar is full AND the server connection is open.
 const LOADING_MIN_MS = 2500;
 const loaderBar = $('loader-bar');
 let splashDoneAt = 0;
@@ -49,11 +46,17 @@ ws.addEventListener('open', () => {
   while (pendingQueue.length) ws.send(pendingQueue.shift());
 });
 
-ws.addEventListener('close', () => { wsOpen = false; });
+ws.addEventListener('close', () => {
+  wsOpen = false;
+  if ($('screen-game').classList.contains('active')) pushFeed('Connection lost');
+});
 
+// FIX: high-frequency messages (input/shoot) are dropped while offline instead of
+// piling up in a queue and flooding the server when the connection returns.
 function send(type, data) {
   const payload = JSON.stringify({ type, data: data || {} });
-  if (wsOpen) ws.send(payload); else pendingQueue.push(payload);
+  if (wsOpen) ws.send(payload);
+  else if (type !== 'input' && type !== 'shoot') pendingQueue.push(payload);
 }
 
 ws.addEventListener('message', (event) => {
@@ -117,7 +120,6 @@ $('btn-cancel-wait').addEventListener('click', leaveMatch);
 let playerName = '';
 
 function joinGame() {
-  // A name is required: no anonymous players
   playerName = $('input-name').value.trim().replace(/[<>]/g, '');
   if (playerName.length < 2) {
     $('name-error').textContent = 'Enter a name (at least 2 characters) to join.';
@@ -141,6 +143,7 @@ function leaveMatch() {
   spectateId = null;
   gameStartTime = null;
   latestState = { players: [], bullets: [] };
+  resetInputState();
   showScreen('screen-start');
 }
 
@@ -151,13 +154,12 @@ let latestState = { players: [], bullets: [] };
 let gameStartTime = null;
 let decorations = [];
 
-// ---------- Spectator mode (after you are eliminated) ----------
+// ---------- Spectator mode ----------
 let spectateId = null;
 const selfPlayer = () => latestState.players.find(p => p.id === selfId);
 const isSpectating = () => { const me = selfPlayer(); return !!me && !me.alive; };
 const aliveOthers = () => latestState.players.filter(p => p.alive && p.id !== selfId);
 
-// The player whose view we show: yourself while alive, otherwise a living player
 function viewedPlayer() {
   const me = selfPlayer();
   if (!me || me.alive) return me;
@@ -192,7 +194,6 @@ function onRoomUpdate(data) {
   renderLobby();
 }
 
-// One slot per seat in the room: filled seats show the player's animal and name
 function renderLobby() {
   if (!lastRoom) return;
   const d = lastRoom;
@@ -227,18 +228,28 @@ function onSoloWait(data) {
   $('wait-timer-text').textContent = `No opponents yet. Bots join in ${s}s`;
 }
 
+// FIX: only ever one render loop, even if gameStart arrives twice
+let loopRunning = false;
 function onGameStart(data) {
   gameStartTime = data.startTime;
   spectateId = null;
-  lastHpTop = -1; // force the HP bar to re-position for this match
+  lastHpTop = -1;
+  smooth.clear();
+  resetInputState();
   showScreen('screen-game');
   resizeCanvas();
-  requestAnimationFrame(renderLoop);
+  if (!loopRunning) {
+    loopRunning = true;
+    lastFrame = performance.now();
+    requestAnimationFrame(renderLoop);
+  }
 }
 
+// FIX: state messages only store data; the HUD (DOM) is refreshed at most ~8x/sec
+let hudDirty = false;
 function onState(data) {
   latestState = data;
-  updateHUD();
+  hudDirty = true;
 }
 
 const killFeedEl = $('kill-feed');
@@ -269,7 +280,6 @@ function onMatchResult(data) {
   const listEl = $('result-list');
   listEl.innerHTML = '';
   [...data.players].sort((a, b) => b.kills - a.kills).forEach((p, i) => {
-    // SECURITY: textContent only, never innerHTML, so player names cannot inject HTML
     const row = document.createElement('div');
     const a = document.createElement('span');
     const b = document.createElement('span');
@@ -278,19 +288,46 @@ function onMatchResult(data) {
     row.append(a, b);
     listEl.appendChild(row);
   });
+  resetInputState();
   showScreen('screen-result');
 }
 
 // ---------- Canvas ----------
 const canvas = $('game-canvas');
 const ctx = canvas.getContext('2d');
-function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+let exitRect = { left: 12, bottom: 40 };
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  cacheExitRect();
+}
+// FIX: measuring the Exit button every frame forced layout work; cache it instead
+function cacheExitRect() {
+  const r = $('btn-leave-match').getBoundingClientRect();
+  if (r.width) exitRect = { left: r.left, bottom: r.bottom };
+  lastHpTop = -1;
+}
 window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 250));
 resizeCanvas();
 
 // ---------- Keyboard / mouse / touch ----------
 const keys = { up: false, down: false, left: false, right: false };
 const KEYMAP = { w: 'up', arrowup: 'up', s: 'down', arrowdown: 'down', a: 'left', arrowleft: 'left', d: 'right', arrowright: 'right' };
+let mouseX = 0, mouseY = 0, aimAngle = 0, mouseDown = false, touchAiming = false;
+
+// FIX: stuck keys / stuck shooting when the tab loses focus or the screen changes
+function resetInputState() {
+  keys.up = keys.down = keys.left = keys.right = false;
+  mouseDown = false;
+  touchAiming = false;
+  lastSent = null;
+  ['joystick-move-knob', 'joystick-aim-knob'].forEach(id => {
+    const k = $(id); if (k) k.style.transform = 'translate(-50%, -50%)';
+  });
+}
+window.addEventListener('blur', resetInputState);
+document.addEventListener('visibilitychange', () => { if (document.hidden) resetInputState(); });
 
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
@@ -301,14 +338,13 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (KEYMAP[k]) keys[KEYMAP[k]] = true;
-  else if (k === 'r') send('reload');
+  else if (k === 'r' && !e.repeat) send('reload');
 });
 window.addEventListener('keyup', (e) => {
   const k = e.key.toLowerCase();
   if (KEYMAP[k]) keys[KEYMAP[k]] = false;
 });
 
-let mouseX = 0, mouseY = 0, aimAngle = 0, mouseDown = false;
 canvas.addEventListener('mousemove', (e) => { mouseX = e.clientX; mouseY = e.clientY; });
 canvas.addEventListener('mousedown', () => {
   if (isSpectating()) cycleSpectate(1); else mouseDown = true;
@@ -318,21 +354,11 @@ $('btn-reload-mobile').addEventListener('click', () => send('reload'));
 $('btn-spec-prev').addEventListener('click', () => cycleSpectate(-1));
 $('btn-spec-next').addEventListener('click', () => cycleSpectate(1));
 
+// FIX: the joystick now reacts on the very first touch (not only after the finger moves)
 function setupJoystick(baseEl, knobEl, onMove, onEnd) {
-  let active = false, baseRect = null, touchId = null;
+  let baseRect = null, touchId = null;
 
-  baseEl.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    touchId = e.changedTouches[0].identifier;
-    active = true;
-    baseRect = baseEl.getBoundingClientRect();
-  }, { passive: false });
-
-  window.addEventListener('touchmove', (e) => {
-    if (!active) return;
-    const t = [...e.changedTouches].find(x => x.identifier === touchId);
-    if (!t) return;
-    e.preventDefault();
+  function apply(t) {
     const dx = t.clientX - (baseRect.left + baseRect.width / 2);
     const dy = t.clientY - (baseRect.top + baseRect.height / 2);
     const max = baseRect.width / 2;
@@ -340,11 +366,28 @@ function setupJoystick(baseEl, knobEl, onMove, onEnd) {
     const angle = Math.atan2(dy, dx);
     knobEl.style.transform = `translate(calc(-50% + ${Math.cos(angle) * dist}px), calc(-50% + ${Math.sin(angle) * dist}px))`;
     onMove(dx / max, dy / max, dist / max, angle);
+  }
+
+  baseEl.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (touchId !== null) return; // already held by another finger
+    const t = e.changedTouches[0];
+    touchId = t.identifier;
+    baseRect = baseEl.getBoundingClientRect();
+    apply(t);
+  }, { passive: false });
+
+  window.addEventListener('touchmove', (e) => {
+    if (touchId === null) return;
+    const t = [...e.changedTouches].find(x => x.identifier === touchId);
+    if (!t) return;
+    e.preventDefault();
+    apply(t);
   }, { passive: false });
 
   const end = (e) => {
+    if (touchId === null) return;
     if (![...e.changedTouches].some(x => x.identifier === touchId)) return;
-    active = false;
     touchId = null;
     knobEl.style.transform = 'translate(-50%, -50%)';
     onEnd();
@@ -357,36 +400,66 @@ setupJoystick($('joystick-move'), $('joystick-move-knob'),
   (nx, ny) => { keys.up = ny < -0.3; keys.down = ny > 0.3; keys.left = nx < -0.3; keys.right = nx > 0.3; },
   () => { keys.up = keys.down = keys.left = keys.right = false; });
 
-let touchAiming = false;
 setupJoystick($('joystick-aim'), $('joystick-aim-knob'),
   (nx, ny, strength, angle) => { aimAngle = angle; touchAiming = strength > 0.2; },
   () => { touchAiming = false; });
 
-// ---------- Input loop (30 Hz) ----------
+// ---------- Input loop (30 Hz tick) ----------
+// FIX: 'input' is only sent when something changed (plus a 150 ms heartbeat) instead of
+// 30 messages per second per player. This removes most of the network/server load.
 const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+let lastSent = null, lastSentAt = 0;
 
 setInterval(() => {
-  if (!selfId || isSpectating()) return;
-  if (!isTouch) {
-    const me = latestState.players.find(p => p.id === selfId);
-    if (me) {
-      const sp = worldToScreen(me.x, me.y);
-      aimAngle = Math.atan2(mouseY - sp.y, mouseX - sp.x);
-    }
+  if (!selfId || isSpectating() || !$('screen-game').classList.contains('active')) return;
+  const me = selfPlayer();
+  if (!isTouch && me) {
+    const sp = worldToScreen(smoothPos(me).x, smoothPos(me).y);
+    aimAngle = Math.atan2(mouseY - sp.y, mouseX - sp.x);
   }
-  send('input', { up: keys.up, down: keys.down, left: keys.left, right: keys.right, angle: aimAngle });
+  const msg = { up: keys.up, down: keys.down, left: keys.left, right: keys.right, angle: aimAngle };
+  const now = performance.now();
+  let changed = !lastSent || lastSent.up !== msg.up || lastSent.down !== msg.down ||
+                lastSent.left !== msg.left || lastSent.right !== msg.right;
+  if (!changed) {
+    const d = msg.angle - lastSent.angle;
+    changed = Math.abs(Math.atan2(Math.sin(d), Math.cos(d))) > 0.03;
+  }
+  if (changed || now - lastSentAt > 150) {
+    send('input', msg);
+    lastSent = msg;
+    lastSentAt = now;
+  }
   if (mouseDown || touchAiming) send('shoot');
 }, 1000 / 30);
+
+// ---------- Smoothing (hides network jitter so movement looks fluid) ----------
+const smooth = new Map();
+let lastFrame = 0;
+function smoothPos(p) {
+  let s = smooth.get(p.id);
+  if (!s) { s = { x: p.x, y: p.y }; smooth.set(p.id, s); }
+  return s;
+}
+function stepSmoothing(dt) {
+  const k = 1 - Math.exp(-dt * 28);
+  latestState.players.forEach(p => {
+    const s = smoothPos(p);
+    if (Math.abs(p.x - s.x) > 250 || Math.abs(p.y - s.y) > 250) { s.x = p.x; s.y = p.y; }
+    else { s.x += (p.x - s.x) * k; s.y += (p.y - s.y) * k; }
+  });
+}
 
 // ---------- Camera ----------
 let camX = 0, camY = 0;
 function updateCamera() {
   const me = viewedPlayer();
-  if (me) { camX = me.x - canvas.width / 2; camY = me.y - canvas.height / 2; }
+  if (me) { const s = smoothPos(me); camX = s.x - canvas.width / 2; camY = s.y - canvas.height / 2; }
 }
 function worldToScreen(x, y) { return { x: x - camX, y: y - camY }; }
 
 // ---------- HUD ----------
+let lastBoardSig = '';
 function updateHUD() {
   const spec = isSpectating();
   $('screen-game').classList.toggle('spectating', spec);
@@ -403,17 +476,21 @@ function updateHUD() {
   $('alive-count').textContent = `PLAYERS: ${latestState.players.filter(p => p.alive).length}`;
   $('timer').textContent = fmtTime(latestState.elapsed);
 
+  // Leaderboard: top 3 plus your own row; the DOM is rebuilt only when its content changes
+  const ranked = [...latestState.players].sort((a, b) => b.kills - a.kills);
+  const rows = ranked.slice(0, 3).map((p, i) => ({ p, i }));
+  const myIdx = ranked.findIndex(p => p.id === selfId);
+  if (myIdx >= 3) rows.push({ p: ranked[myIdx], i: myIdx });
+  const sig = rows.map(({ p, i }) => `${i}|${p.name}|${p.kills}|${p.alive}|${p.id === selfId}`).join(';');
+  if (sig === lastBoardSig) return;
+  lastBoardSig = sig;
+
   const board = $('leaderboard');
   board.innerHTML = '';
   const head = document.createElement('div');
   head.style.cssText = 'font-weight:800;margin-bottom:4px;';
   head.textContent = 'Leaderboard';
   board.appendChild(head);
-  // Compact: top 3 plus your own row (if you are not already in the top 3)
-  const ranked = [...latestState.players].sort((a, b) => b.kills - a.kills);
-  const rows = ranked.slice(0, 3).map((p, i) => ({ p, i }));
-  const myIdx = ranked.findIndex(p => p.id === selfId);
-  if (myIdx >= 3) rows.push({ p: ranked[myIdx], i: myIdx });
   rows.forEach(({ p, i }) => {
     const row = document.createElement('div');
     row.textContent = `${i + 1}. ${p.name} — ${p.kills} Kills${p.alive ? '' : ' 💀'}`;
@@ -428,8 +505,20 @@ function updateHUD() {
 const INK = '#0a1f1e';
 const ROOFS = [['#ff5a47', '#e24632'], ['#2f8f8b', '#23706c'], ['#ffc83d', '#e0a91f']];
 let groundPattern = null;
+let lastHudAt = 0;
 
-function renderLoop() {
+function renderLoop(now) {
+  if (!$('screen-game').classList.contains('active')) { loopRunning = false; return; }
+
+  const dt = Math.min(0.1, Math.max(0.001, ((now || performance.now()) - lastFrame) / 1000));
+  lastFrame = now || performance.now();
+  stepSmoothing(dt);
+
+  if (hudDirty && lastFrame - lastHudAt > 120) {
+    hudDirty = false; lastHudAt = lastFrame;
+    updateHUD();
+  }
+
   updateCamera();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawBackground();
@@ -447,8 +536,8 @@ function renderLoop() {
 
   latestState.players.forEach(pl => {
     if (!pl.alive) return;
-    const p = worldToScreen(pl.x, pl.y);
-    // You vs opponents: every player gets a colored ring; you also get a white ring and a marker
+    const sp = smoothPos(pl);
+    const p = worldToScreen(sp.x, sp.y);
     const mine = pl.id === selfId;
     ctx.save();
     ctx.globalAlpha = 0.28; ctx.fillStyle = mine ? '#ffffff' : (pl.color || '#ff5a47');
@@ -459,12 +548,13 @@ function renderLoop() {
     drawCharacter(p.x, p.y, pl.angle, pl.characterType);
     if (mine) tri([[p.x - 7, p.y - 66], [p.x + 7, p.y - 66], [p.x, p.y - 56]], '#5ce1b9');
 
+    // FIX: stroke outline instead of shadowBlur (shadowBlur is very slow on phones)
     ctx.font = 'bold 13px "Barlow Semi Condensed", sans-serif';
     ctx.textAlign = 'center';
-    ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 4;
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineJoin = 'round';
+    ctx.strokeText(pl.name, p.x, p.y - 44);
     ctx.fillStyle = mine ? '#5ce1b9' : '#ffb3a8';
     ctx.fillText(pl.name, p.x, p.y - 44);
-    ctx.shadowBlur = 0;
 
     const barW = 42;
     ctx.fillStyle = INK; ctx.fillRect(p.x - barW / 2 - 1, p.y - 39, barW + 2, 8);
@@ -473,7 +563,7 @@ function renderLoop() {
   });
 
   drawMinimap();
-  if ($('screen-game').classList.contains('active')) requestAnimationFrame(renderLoop);
+  requestAnimationFrame(renderLoop);
 }
 
 function makeGround() {
@@ -497,7 +587,6 @@ function drawBackground() {
   ctx.fillRect(camX, camY, canvas.width, canvas.height);
   ctx.restore();
 
-  // dark void outside the arena so the edge is obvious
   ctx.save();
   ctx.fillStyle = INK;
   ctx.beginPath();
@@ -576,17 +665,14 @@ function drawWorldWall(x, y, w, h, type) {
   }
 }
 
-// The minimap sits directly under the Exit button, and the HP bar sits directly
-// under the minimap, so nothing overlaps at any screen size or orientation.
+// Minimap sits under the Exit button; HP bar sits under the minimap.
 let lastHpTop = -1;
 function drawMinimap() {
   const short = window.innerHeight < 500;
   const size = short ? 90 : (isTouch ? 100 : 130);
-  const ex = $('btn-leave-match').getBoundingClientRect();
-  const mx = ex.left, my = ex.bottom + 8;
+  const mx = exitRect.left, my = exitRect.bottom + 8;
   const s = size / mapInfo.width, mh = mapInfo.height * s;
 
-  // HP bar follows the minimap instead of using a magic number
   const hpTop = Math.round(my + mh + 10);
   if (hpTop !== lastHpTop) { $('hud-top-left').style.top = hpTop + 'px'; lastHpTop = hpTop; }
 
@@ -601,10 +687,11 @@ function drawMinimap() {
   const vid = (viewedPlayer() || {}).id;
   latestState.players.forEach(p => {
     if (!p.alive) return;
+    const sp = smoothPos(p);
     const me = p.id === vid;
     ctx.fillStyle = me ? '#ffc83d' : '#5ce1b9';
     ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(mx + p.x * s, my + p.y * s, me ? 4 : 3, 0, Math.PI * 2);
+    ctx.beginPath(); ctx.arc(mx + sp.x * s, my + sp.y * s, me ? 4 : 3, 0, Math.PI * 2);
     ctx.fill(); ctx.stroke();
   });
 
@@ -661,7 +748,6 @@ function drawPenguin(a) {
   ell(-6, 20, 5, 3, '#ffa733'); ell(6, 20, 5, 3, '#ffa733');
 }
 
-// Shared body plan for bear / fox / wolf
 function drawBeast(a, o) {
   aimLine(a, o.aim);
   if (o.tail) ell(-18, 10, 10, 6, o.body, -0.5);

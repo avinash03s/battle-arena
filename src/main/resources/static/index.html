@@ -11,6 +11,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css?v=9" />
+    <!-- Install popup spinner (kept here so style.css does not need to change) -->
+    <style>
+        .spinner{display:inline-block;width:16px;height:16px;border:3px solid var(--mute);border-top-color:var(--sun);
+        border-radius:50%;vertical-align:-3px;margin-right:6px;animation:spin .8s linear infinite}
+        @keyframes spin{to{transform:rotate(360deg)}}
+    </style>
 </head>
 <body>
 
@@ -217,7 +223,7 @@
 <script>
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
 </script>
-<script src="js/pwa.js?v=2"></script>
-<script src="js/game.js?v=6"></script>
+<script src="js/pwa.js?v=3"></script>
+<script src="js/game.js?v=7"></script>
 </body>
 </html>

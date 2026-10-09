@@ -271,3 +271,8 @@ background:var(--teal2);border:3px solid var(--ink);border-radius:16px;box-shado
 @media (hover:hover) and (pointer:fine){
 .hud-bottom-right{bottom:calc(env(safe-area-inset-bottom,0px) + 20px)}
 }
+
+/* Install popup spinner */
+.spinner{display:inline-block;width:16px;height:16px;border:3px solid var(--mute);border-top-color:var(--sun);
+border-radius:50%;vertical-align:-3px;margin-right:6px;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}

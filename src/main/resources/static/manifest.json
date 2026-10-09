@@ -1,6 +1,7 @@
 {
   "name": "Battle Arena",
-  "short_name": "Battle Arena",
+  "short_name": "Arena",
+  "description": "Outlast everyone. Own the arena.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
