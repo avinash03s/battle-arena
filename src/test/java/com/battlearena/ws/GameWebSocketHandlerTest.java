@@ -298,7 +298,7 @@ class GameWebSocketHandlerTest {
         }
 
         @Override
-        public Player joinRoom(Room room, WebSocketSession session, String name) {
+        public Player joinRoom(Room room, WebSocketSession session, String name, String characterType) {
             joinRoomCalls++;
             lastPlayerName = name;
             joinedPlayer = new Player(session.getId(), name,100,100,"#3aa0ff");
