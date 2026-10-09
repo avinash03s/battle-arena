@@ -13,7 +13,7 @@ public interface GameEngine {
 
     List<Decoration> getDecorationsForRoom(Room room);
 
-    Player joinRoom(Room room, WebSocketSession session, String name);
+    Player joinRoom(Room room, WebSocketSession session, String name, String characterType);
 
     void handleDisconnect(String sessionId);
 

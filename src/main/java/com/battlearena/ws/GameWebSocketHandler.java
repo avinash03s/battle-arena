@@ -61,7 +61,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 }
 
                 Room room = engine.findOrCreateRoom(roomSize);
-                Player player = engine.joinRoom(room, session, name);
+                Player player = engine.joinRoom(room, session, name,characterType);
 
                 // Set character on the Player FIRST — this is what rendering/state uses
                 player.setCharacterType(characterType);

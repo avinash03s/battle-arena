@@ -104,13 +104,14 @@ public class GameEngineServiceImpl implements GameEngine {
 
     /** Adds a player to the room with a spawn point and color, then updates everyone. */
     @Override
-    public Player joinRoom(Room room, WebSocketSession session, String name) {
+    public Player joinRoom(Room room, WebSocketSession session, String name, String characterType) {
         int spawnIndex = room.getPlayers().size();
         double[] spawn = spawnPoint(spawnIndex);
         String color = spawnIndex == 0 ? "#3aa0ff" : "#ff4d4d";
 
         Player player = new Player(session.getId(), name, spawn[0], spawn[1], color);
         player.setSession(session);
+        player.setCharacterType(characterType);
 
         room.getPlayers().put(session.getId(), player);
         roomRepository.linkSessionToRoom(session.getId(), room.getId());
