@@ -18,10 +18,12 @@ import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 public class GameEngineServiceImpl implements GameEngine {
@@ -54,13 +56,23 @@ public class GameEngineServiceImpl implements GameEngine {
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final ScheduledExecutorService countdownExecutor = Executors.newScheduledThreadPool(4);
-    // FIX: bigger pool so one slow phone cannot starve everyone else's sends
+    // Bigger pool so one slow phone cannot starve everyone else's sends
     private final ExecutorService broadcastExecutor = Executors.newFixedThreadPool(16);
     private final Random random = new Random();
 
-    // FIX: sessions that are still busy sending a "state" frame. A slow client simply
-    // skips frames instead of building an ever-growing queue (which caused the lag).
-    private final Set<String> stateSendBusy = ConcurrentHashMap.newKeySet();
+    /**
+     * FIX (ordering): one ordered outbox per WebSocket session.
+     * Before, every message was submitted to a 16-thread pool on its own, so two messages
+     * for the same phone (e.g. "countdown" then "gameStart") could be sent by different
+     * threads and arrive in the wrong order. That made Android screens skip or get stuck.
+     * Now all messages of one session go through one queue and are sent strictly in order.
+     */
+    private static class Outbox {
+        final Queue<TextMessage> queue = new ConcurrentLinkedQueue<>();
+        final AtomicBoolean running = new AtomicBoolean(false);
+    }
+
+    private final Map<String, Outbox> outboxes = new ConcurrentHashMap<>();
 
     // Solo-wait countdown task per room (cancelled if a real player joins)
     private final Map<String, ScheduledFuture<?>> soloWaitTasks = new ConcurrentHashMap<>();
@@ -126,7 +138,7 @@ public class GameEngineServiceImpl implements GameEngine {
     /** Raw socket disconnect: remove the player, notify others, check for a winner. */
     @Override
     public void handleDisconnect(String sessionId) {
-        stateSendBusy.remove(sessionId);
+        outboxes.remove(sessionId);
         Room room = roomRepository.getBySessionId(sessionId);
         roomRepository.removeSession(sessionId);
         if (room == null) return;
@@ -621,7 +633,14 @@ public class GameEngineServiceImpl implements GameEngine {
         if (alive.size() <= 1) {
             room.setState(Room.State.ENDED);
 
-            Player winner = alive.isEmpty() ? null : alive.get(0);
+            Player winner;
+
+            if (alive.isEmpty()) {
+                winner = null;
+            } else {
+                winner = alive.get(0);
+            }
+
             Map<String, Object> payload = new HashMap<>();
 
             if (winner != null) {
@@ -723,11 +742,48 @@ public class GameEngineServiceImpl implements GameEngine {
     }
 
     /**
-     * Sends a message to every connected (non-bot) player in the room.
-     * "state" frames are droppable: if a client is still receiving the previous frame we skip it,
-     * so a slow phone never builds up a backlog. All other messages (countdown, gameStart,
-     * playerEliminated, matchResult...) are always delivered.
+     * Puts a message in a session's ordered outbox and starts sending if nobody is.
+     * "state" frames are droppable: if the client is still busy or has a backlog we skip the
+     * frame, so a slow phone never builds up lag. Every other message is always delivered,
+     * and always in the order it was queued.
      */
+    private void enqueue(WebSocketSession session, TextMessage message, boolean droppable) {
+        Outbox outbox = outboxes.computeIfAbsent(session.getId(), k -> new Outbox());
+        if (droppable && (outbox.running.get() || !outbox.queue.isEmpty())) {
+            return;
+        }
+        outbox.queue.add(message);
+        drain(session, outbox);
+    }
+
+    /** Sends everything in the outbox, one message at a time, on a single worker at once. */
+    private void drain(final WebSocketSession session, final Outbox outbox) {
+        if (!outbox.running.compareAndSet(false, true)) return;
+        broadcastExecutor.submit(() -> {
+            try {
+                TextMessage m;
+                while ((m = outbox.queue.poll()) != null) {
+                    try {
+                        synchronized (session) {
+                            session.sendMessage(m);
+                        }
+                    } catch (Exception e) {
+                        // client went away or timed out; the disconnect handler cleans up
+                        outbox.queue.clear();
+                        break;
+                    }
+                }
+            } finally {
+                outbox.running.set(false);
+                // a message may have been added right after the last poll
+                if (!outbox.queue.isEmpty()) {
+                    drain(session, outbox);
+                }
+            }
+        });
+    }
+
+    /** Sends a message to every connected (non-bot) player in the room, in order. */
     @Override
     public void broadcast(Room room, String type, Object data) {
         Map<String, Object> envelope = new HashMap<>();
@@ -738,32 +794,16 @@ public class GameEngineServiceImpl implements GameEngine {
             String json = mapper.writeValueAsString(envelope);
             TextMessage message = new TextMessage(json);
             for (Player p : room.getPlayers().values()) {
-                final WebSocketSession session = p.getSession();
+                WebSocketSession session = p.getSession();
                 if (session == null || !session.isOpen()) continue;
-
-                final String sid = session.getId();
-                if (droppable && !stateSendBusy.add(sid)) {
-                    continue; // still sending the previous frame: skip this one
-                }
-
-                broadcastExecutor.submit(() -> {
-                    try {
-                        synchronized (session) {
-                            session.sendMessage(message);
-                        }
-                    } catch (Exception e) {
-                        // client went away or timed out; the disconnect handler cleans up
-                    } finally {
-                        if (droppable) stateSendBusy.remove(sid);
-                    }
-                });
+                enqueue(session, message, droppable);
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    /** Sends a message to one specific WebSocket client. */
+    /** Sends a message to one specific WebSocket client, in order with all other messages. */
     @Override
     public void sendTo(WebSocketSession session, String type, Object data) {
         Map<String, Object> envelope = new HashMap<>();
@@ -771,16 +811,7 @@ public class GameEngineServiceImpl implements GameEngine {
         envelope.put("data", data);
         try {
             String json = mapper.writeValueAsString(envelope);
-            TextMessage message = new TextMessage(json);
-            broadcastExecutor.submit(() -> {
-                try {
-                    synchronized (session) {
-                        session.sendMessage(message);
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
+            enqueue(session, new TextMessage(json), false);
         } catch (Exception e) {
             e.printStackTrace();
         }

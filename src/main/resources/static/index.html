@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=9" />
+    <link rel="stylesheet" href="css/style.css?v=16" />
     <!-- Install popup spinner (kept here so style.css does not need to change) -->
     <style>
         .spinner{display:inline-block;width:16px;height:16px;border:3px solid var(--mute);border-top-color:var(--sun);
@@ -28,14 +28,15 @@
         <polygon points="50,46 63,82 37,82" fill="#ffc83d"/>
     </svg>
     <div class="splash-name">Alpha Group</div>
+    <div class="splash-sub">By Avinash</div>
     <div class="splash-bar"><i></i></div>
 </div>
 
-<!-- 2. Game loading screen (hidden by game.js once connected) -->
+<!-- 2. Game loading screen: full-screen wall of all characters + big typographic title (hidden by game.js once connected) -->
 <div id="loading-screen" class="loading-screen">
+    <div id="loader-bg" class="loader-bg" aria-hidden="true"></div>
     <div class="loader-content">
-        <div class="loader-icon">⚔️</div>
-        <h1 class="title">BATTLE ARENA</h1>
+        <h1 class="title loader-title">BATTLE<br>ARENA</h1>
         <p class="loader-tagline">Connecting to the arena…</p>
         <div class="loader-bar-wrap"><div id="loader-bar" class="loader-bar"></div></div>
         <p class="loader-text">Almost there</p>
@@ -52,7 +53,7 @@
         <span class="brand-tag-text">Alpha Group</span>
     </div>
     <h1 class="title">BATTLE ARENA</h1>
-    <p class="subtitle">Outlast everyone. Own the arena.</p>
+    <p class="subtitle">Jump In. Fight On. Win Big!</p>
     <div class="menu">
         <button id="btn-play" class="btn btn-primary">Play</button>
         <button id="btn-howto" class="btn">How to play</button>
@@ -84,7 +85,7 @@
     <div class="panel about-section">
         <div class="about-title">Battle Arena</div>
         <div class="about-info">
-            <div><span>Developer</span><strong>Avinash Surwase</strong></div>
+            <div><span>Made By</span><strong>Avinash Surwase</strong></div>
             <div><span>Publisher</span><strong>Alpha Group</strong></div>
             <div><span>Version</span><strong>1.0</strong></div>
         </div>
@@ -179,6 +180,7 @@
 </div>
 
 <div id="screen-result" class="screen">
+    <div id="result-crown" class="result-crown" aria-hidden="true">👑</div>
     <h1 id="result-title" class="result-title">VICTORY!</h1>
     <div id="result-sub" class="result-sub"></div>
     <div class="result-stats">
@@ -189,6 +191,20 @@
     <div class="menu">
         <button id="btn-play-again" class="btn btn-primary">Play again</button>
         <button id="btn-main-menu" class="btn" data-back="screen-start">Main menu</button>
+    </div>
+</div>
+
+<!-- Winner confetti: sits above every screen, never blocks taps. Started/stopped by game.js -->
+<canvas id="confetti-canvas" class="confetti-canvas" aria-hidden="true"></canvas>
+
+<!-- 3. Short match loading screen: same look as the game loading screen, shown briefly when the countdown ends.
+        Reusable (not removed). Controlled by showMatchLoading() / hideMatchLoading() in game.js -->
+<div id="match-loading" class="loading-screen hidden" aria-hidden="true">
+    <div id="match-loader-bg" class="loader-bg"></div>
+    <div class="loader-content">
+        <h1 class="title loader-title">BATTLE<br>ARENA</h1>
+        <p class="loader-tagline">Loading match…</p>
+        <div class="loader-bar-wrap"><div id="match-loader-bar" class="loader-bar"></div></div>
     </div>
 </div>
 
@@ -204,26 +220,58 @@
 </div>
 
 <script>
-    // Step 1 -> 2: when the studio splash finishes, remove it and tell game.js to start the loading screen
+    // Step 1 -> 2: when the studio splash finishes, remove it and tell game.js to start the loading screen.
+    // window.__splashDone lets scripts that load late (slow Android connection) know it already finished.
     (function () {
       var splash = document.getElementById('splash');
       var done = false;
       function finish() {
         if (done) return;
         done = true;
+        window.__splashDone = true;
         if (splash) splash.remove();
         window.dispatchEvent(new Event('splash-done'));
       }
-      splash.addEventListener('animationend', function (e) {
-        if (e.animationName === 'splashOut') finish();
-      });
-      setTimeout(finish, 5000); // safety net if animations are disabled
+      if (splash) {
+        splash.addEventListener('animationend', function (e) {
+          if (e.animationName === 'splashOut') finish();
+        });
+      }
+      // Safety net if animations are disabled (matches the 4.2s delay + 0.5s fade in CSS)
+      setTimeout(finish, 5200);
     })();
 </script>
 <script>
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
 </script>
-<script src="js/pwa.js?v=3"></script>
-<script src="js/game.js?v=7"></script>
+<script>
+    // Fill every loading screen (game loading + match loading) with all characters, mixed and slightly tilted
+    (function () {
+      var chars = ['🐧','🐻','🦊','🐺','🐴','🐼','🦁','🐯','🦅','🐉'];
+      var cell = 96;
+      // fixed shuffle so neighbours differ and the pattern looks mixed, not striped
+      var order = [3,8,0,6,1,9,4,2,7,5];
+      document.querySelectorAll('.loader-bg').forEach(function (bg) {
+        var cols = Math.ceil(window.innerWidth / cell) + 1;
+        var rows = Math.ceil(window.innerHeight / cell) + 1;
+        bg.style.gridTemplateColumns = 'repeat(' + cols + ', ' + cell + 'px)';
+        bg.style.gridAutoRows = cell + 'px';
+        var html = '';
+        for (var r = 0; r < rows; r++) {
+          for (var c = 0; c < cols; c++) {
+            var ch = chars[order[(c + r * 3) % 10]];
+            var rot = Math.round(((c * 37 + r * 53) % 50) - 25);
+            var dur = (3 + ((c * 7 + r * 11) % 30) / 10).toFixed(1);
+            var del = (-((c * 13 + r * 17) % 40) / 10).toFixed(1);
+            var size = (2.4 + ((c * 5 + r * 3) % 12) / 10).toFixed(1);
+            html += '<span style="--r:' + rot + 'deg;--d:' + dur + 's;animation-delay:' + del + 's;font-size:' + size + 'rem">' + ch + '</span>';
+          }
+        }
+        bg.innerHTML = html;
+      });
+    })();
+</script>
+<script src="js/pwa.js?v=4"></script>
+<script src="js/game.js?v=10"></script>
 </body>
 </html>

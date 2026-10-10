@@ -127,23 +127,46 @@ padding:0 calc(20px + env(safe-area-inset-right,0px)) calc(20px + env(safe-area-
 .timer{font-size:1rem}}
 
 /* Result */
-.result-title{font-family:var(--display);font-size:clamp(2.4rem,10vw,4rem);color:var(--sun);text-shadow:0 5px 0 var(--ink);margin-bottom:8px}
-.result-sub{color:var(--mute);font-size:1.15rem;margin-bottom:20px}
-.result-stats{display:flex;gap:24px;margin-bottom:22px;font-weight:700;font-size:1.05rem}
-.result-list{width:100%;max-width:340px;margin-bottom:24px}
-.result-list div{display:flex;justify-content:space-between;background:var(--cream);color:var(--ink);font-weight:600;padding:11px 15px;margin-bottom:7px;border:3px solid var(--ink);border-radius:10px}
-.result-list div:first-child{background:var(--sun);font-weight:700}
+.result-title{font-family:var(--display);font-size:clamp(2rem,min(10vw,9vh),4rem);color:var(--sun);text-shadow:0 5px 0 var(--ink);margin-bottom:8px}
+/* Winner banner: bright pill so the winner's name is the first thing you read */
+.result-sub{position:relative;display:inline-block;font-family:var(--display);font-size:clamp(1.1rem,4.5vw,1.6rem);color:var(--ink);
+background:var(--sun);border:3px solid var(--ink);border-radius:10px;box-shadow:0 4px 0 var(--ink);
+padding:8px 18px;margin-bottom:clamp(8px,2vh,16px);max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.result-sub:empty{display:none}
+.result-sub.is-me{background:var(--mint)}
+.result-stats{display:flex;gap:24px;margin-bottom:clamp(8px,2vh,16px);font-weight:700;font-size:1.05rem}
+/* Standings: two columns so even 6 players fit on one screen without scrolling */
+.result-list{width:100%;max-width:560px;margin-bottom:clamp(10px,2.5vh,20px);display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.result-list div{display:flex;justify-content:space-between;gap:10px;background:var(--cream);color:var(--ink);font-weight:600;padding:clamp(7px,1.5vh,11px) 15px;margin:0;border:3px solid var(--ink);border-radius:10px}
+.result-list div span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.result-list div span:last-child{flex:none}
+/* Buttons side by side */
+#screen-result{padding-top:16px;padding-bottom:16px}
+#screen-result .menu{flex-direction:row;max-width:520px;gap:12px}
+#screen-result .menu .btn{flex:1;padding:12px 14px;font-size:.95rem}
+/* Narrow portrait phones have plenty of height: single column list, stacked buttons */
+@media (max-width:480px){
+.result-list{grid-template-columns:1fr}
+#screen-result .menu{flex-direction:column;max-width:320px}
+}
+.result-list div.winner-row{background:var(--sun);font-weight:700;outline:3px solid var(--cream);outline-offset:2px}
+.result-list div.me-row:not(.winner-row){border-color:var(--mint)}
 
 /* Studio splash (shown first) + loading screen
-   Logo, name and loading bar sit together as one centered group (no big gap). */
+   Logo, name and loading bar sit together as one centered group (no big gap).
+   SLOW brand version: logo 0.2s, name 0.8s, bar fills 0.8s-4.0s, fade-out 4.2s-4.7s.
+   If you change these timings, also change the setTimeout(finish, ...) fallback in index.html
+   (keep it ~0.5s longer than the fade-out ends). */
 .splash{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--ink);
-animation:splashOut .5s ease 3.2s forwards}
-.splash-logo{width:96px;height:96px;animation:pop .7s cubic-bezier(.2,1.4,.4,1) .2s both}
+animation:splashOut .5s ease 4.2s forwards}
+.splash-logo{width:96px;height:96px;animation:pop .9s cubic-bezier(.2,1.4,.4,1) .2s both}
 .splash-name{font-family:var(--body);font-weight:700;font-size:clamp(1.4rem,6vw,2.2rem);color:var(--cream);margin-top:20px;
-letter-spacing:.3em;text-indent:.3em;text-transform:uppercase;animation:rise .6s ease .7s both}
-.splash-sub{font-weight:600;color:var(--sun);margin-top:6px;animation:rise .6s ease 1s both}
-.splash-bar{position:relative;margin-top:28px;width:min(260px,64vw);height:8px;border:2px solid var(--mute);border-radius:4px;overflow:hidden}
-.splash-bar i{display:block;height:100%;width:0;background:var(--sun);animation:fill 2.8s linear .3s forwards}
+letter-spacing:.3em;text-indent:.3em;text-transform:uppercase;animation:rise .9s ease .9s both}
+.splash-sub{font-family:var(--body);font-weight:600;font-size:.85rem;letter-spacing:.2em;text-indent:.2em;text-transform:uppercase;
+color:var(--sun);margin-top:8px;animation:rise .9s ease 1.2s both}
+.splash-bar{position:relative;margin-top:28px;width:min(260px,64vw);height:8px;border:2px solid var(--mute);border-radius:4px;overflow:hidden;
+opacity:0;animation:rise .6s ease .6s forwards}
+.splash-bar i{display:block;height:100%;width:0;background:var(--sun);animation:fill 3.2s cubic-bezier(.45,.05,.55,.95) .8s forwards}
 @keyframes pop{from{transform:scale(.3) rotate(-30deg);opacity:0}to{transform:none;opacity:1}}
 @keyframes rise{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
 @keyframes fill{to{width:100%}}
@@ -151,9 +174,21 @@ letter-spacing:.3em;text-indent:.3em;text-transform:uppercase;animation:rise .6s
 .loading-screen{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;text-align:center;
 background:radial-gradient(circle at 50% 30%,var(--teal2),var(--ink));transition:opacity .4s}
 .loading-screen.hidden{opacity:0;pointer-events:none}
-.loader-content{display:flex;flex-direction:column;align-items:center;text-align:center;padding:24px}
+.loading-screen{overflow:hidden}
+/* The reusable match loading screen is fully hidden (and stops animating) while it is not showing */
+#match-loading.hidden{visibility:hidden;transition:opacity .4s,visibility 0s .4s}
+#match-loading.hidden .loader-bg span{animation-play-state:paused}
+.loader-bg{position:absolute;inset:0;display:grid;justify-content:center;align-content:center;opacity:.55;z-index:0;pointer-events:none}
+.loader-bg span{display:flex;align-items:center;justify-content:center;transform:rotate(var(--r,0deg));animation:drift var(--d,4s) ease-in-out infinite alternate}
+@keyframes drift{from{transform:rotate(var(--r,0deg)) translateY(-7px)}to{transform:rotate(var(--r,0deg)) translateY(7px)}}
+/* dark centre so the title stays readable on top of the characters */
+.loading-screen::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
+background:radial-gradient(ellipse at 50% 50%,rgba(10,31,30,.88) 0,rgba(10,31,30,.6) 38%,rgba(10,31,30,.05) 100%)}
+.loader-content{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;text-align:center;padding:24px}
+.loader-content .loader-title{font-size:clamp(2.4rem,min(14vw,19vh),7.5rem);line-height:.92;margin-bottom:26px;
+text-shadow:0 6px 0 var(--coral),0 12px 0 var(--ink)}
+@media (prefers-reduced-motion:reduce){.loader-bg span{animation:none}}
 .loader-content .title{text-align:center;margin-bottom:22px}
-.loader-icon{font-size:3rem;margin-bottom:14px}
 .loader-tagline{color:var(--mute);margin-bottom:28px;font-weight:600}
 .loader-bar-wrap{width:min(280px,70vw);height:12px;background:var(--ink);border:3px solid var(--cream);border-radius:8px;overflow:hidden;margin-bottom:12px}
 .loader-bar{height:100%;width:0;background:var(--sun);transition:width .3s}
@@ -164,7 +199,7 @@ background:radial-gradient(circle at 50% 30%,var(--teal2),var(--ink));transition
 .menu{gap:8px}.btn{padding:9px 16px;font-size:.85rem}.screen-heading{margin-bottom:10px}
 .character-grid{grid-template-columns:repeat(auto-fit,minmax(70px,1fr));gap:6px}.character-preview{font-size:1.6rem}
 .character-actions{margin-top:10px}.back-btn{margin-top:12px}.countdown-number{font-size:4rem}}
-@media (prefers-reduced-motion:reduce){.splash,.splash *{animation-duration:.01s!important;animation-delay:0s!important}.splash{animation-delay:1s!important}}
+@media (prefers-reduced-motion:reduce){.splash,.splash *{animation-duration:.01s!important;animation-delay:0s!important}.splash{animation-delay:.5s!important}}
 
 /* Spectator mode */
 .spectate-bar{display:none;position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 24px);transform:translateX(-50%);
@@ -248,7 +283,8 @@ border:3px dashed var(--mute);border-radius:12px;box-shadow:none;font-weight:600
 
   /* Result screen: fits without scrolling */
   .result-title{font-size:2rem;margin-bottom:2px}
-  .result-sub{font-size:.95rem;margin-bottom:6px}
+  .result-sub{font-size:.9rem;padding:4px 12px;margin-bottom:6px}
+  .result-crown{font-size:2rem;margin-bottom:0}
   .result-stats{gap:16px;margin-bottom:8px;font-size:.9rem}
   .result-list{max-width:520px;margin-bottom:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px}
   .result-list div{margin:0;padding:6px 10px;font-size:.85rem;border-width:2px}
@@ -276,3 +312,55 @@ background:var(--teal2);border:3px solid var(--ink);border-radius:16px;box-shado
 .spinner{display:inline-block;width:16px;height:16px;border:3px solid var(--mute);border-top-color:var(--sun);
 border-radius:50%;vertical-align:-3px;margin-right:6px;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* =====================================================================
+   Result screen animations (v16)
+   .win  -> crown drops in, title pops and glows, banner slides in with a shine,
+            winner row pulses, confetti falls (confetti is drawn by game.js)
+   .lose -> title drops with a bounce, everything else fades in
+   Classes are set by onMatchResult() in game.js.
+   ===================================================================== */
+
+/* Confetti layer: above every screen, never blocks taps */
+.confetti-canvas{position:fixed;inset:0;width:100%;height:100%;z-index:60;pointer-events:none;display:none}
+.confetti-canvas.show{display:block}
+
+/* Crown above the title (winner only) */
+.result-crown{display:none;font-size:clamp(3rem,12vw,5rem);line-height:1;margin-bottom:-4px;transform-origin:50% 100%;
+filter:drop-shadow(0 6px 0 var(--ink))}
+#screen-result.win .result-crown{display:block;
+animation:crownDrop .9s cubic-bezier(.2,1.5,.4,1) .1s both,crownFloat 2.4s ease-in-out 1s infinite}
+@keyframes crownDrop{0%{transform:translateY(-140px) rotate(-30deg) scale(.4);opacity:0}60%{opacity:1}100%{transform:none;opacity:1}}
+@keyframes crownFloat{50%{transform:translateY(-6px) rotate(4deg)}}
+
+/* Title */
+#screen-result.win .result-title{color:var(--sun);
+animation:titlePop .8s cubic-bezier(.2,1.6,.4,1) .3s both,titleGlow 1.6s ease-in-out 1.1s infinite alternate}
+@keyframes titlePop{from{transform:scale(.2) rotate(-8deg);opacity:0}to{transform:none;opacity:1}}
+@keyframes titleGlow{from{text-shadow:0 5px 0 var(--ink),0 0 10px rgba(255,200,61,.3)}to{text-shadow:0 5px 0 var(--ink),0 0 34px rgba(255,200,61,.95)}}
+
+#screen-result.lose .result-title{color:var(--coral);animation:titleDrop .7s cubic-bezier(.3,1.3,.5,1) .1s both}
+@keyframes titleDrop{0%{transform:translateY(-50px);opacity:0}60%{transform:translateY(8px);opacity:1}100%{transform:none}}
+
+/* Winner banner: slides in, then a light streak sweeps across it */
+#screen-result .result-sub{animation:bannerIn .6s cubic-bezier(.2,1.4,.4,1) .7s both}
+#screen-result.lose .result-sub{animation-delay:.4s}
+@keyframes bannerIn{from{transform:translateY(20px) scale(.85);opacity:0}to{transform:none;opacity:1}}
+#screen-result.win .result-sub::after{content:'';position:absolute;top:0;bottom:0;left:-60%;width:40%;
+background:linear-gradient(100deg,transparent,rgba(255,255,255,.65),transparent);transform:skewX(-20deg);
+animation:shine 2.2s ease-in-out 1.4s infinite}
+@keyframes shine{0%{left:-60%}55%,100%{left:130%}}
+
+/* Stats + standings fade in after the headline, rows stagger one by one (--i is set in game.js) */
+#screen-result .result-stats{animation:rise .5s ease .9s both}
+#screen-result .result-list div{animation:rowIn .4s ease calc(1s + var(--i,0) * .08s) both}
+#screen-result .menu{animation:rise .5s ease 1.2s both}
+@keyframes rowIn{from{transform:translateX(-24px);opacity:0}to{transform:none;opacity:1}}
+#screen-result .result-list div.winner-row{
+animation:rowIn .4s ease calc(1s + var(--i,0) * .08s) both,winnerPulse 1.4s ease-in-out 1.8s infinite}
+@keyframes winnerPulse{50%{box-shadow:0 0 0 7px rgba(255,200,61,.35)}}
+
+/* Reduced motion: show the final state instantly */
+@media (prefers-reduced-motion:reduce){
+#screen-result *,#screen-result *::after{animation:none!important}
+}

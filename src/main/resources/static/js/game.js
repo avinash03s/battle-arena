@@ -1,7 +1,7 @@
 'use strict';
 
 /* =====================================================================
-   BATTLE ARENA — client (v8: fixed crash on load + cancel + match start)
+   BATTLE ARENA — client (v10: winner banner + victory animation/confetti)
    ===================================================================== */
 
 // For the Android (Capacitor) build, set your server host, e.g. 'battle.example.com'.
@@ -15,12 +15,17 @@ const pendingQueue = [];
 let wsOpen = false;
 
 // ---------- Variables used by early functions (MUST be declared before first use) ----------
-let lastHpTop = -1;          // FIX: was declared far below, caused "before initialization" crash
+let lastHpTop = -1;
 let hudDirty = false;
 let lastBoardSig = '';
 let lastHudAt = 0;
 let lastFrame = 0;
 let groundPattern = null;
+
+// Which part of the flow the player is in. Server messages that do not belong to the
+// current phase (late / out-of-order) are ignored, so screens can never jump around.
+// menu -> lobby -> game -> result
+let phase = 'menu';
 
 // ---------- Loading screen ----------
 function hideLoadingScreen() {
@@ -32,7 +37,8 @@ function hideLoadingScreen() {
 
 const LOADING_MIN_MS = 2500;
 const loaderBar = $('loader-bar');
-let splashDoneAt = 0;
+// If the splash already finished before this script loaded, start from now
+let splashDoneAt = window.__splashDone ? Date.now() : 0;
 window.addEventListener('splash-done', () => { splashDoneAt = Date.now(); });
 
 const loaderInterval = setInterval(() => {
@@ -48,6 +54,31 @@ const loaderInterval = setInterval(() => {
     if (t) t.textContent = 'Cannot reach the server. Check your connection.';
   }
 }, 100);
+
+// ---------- Short match loading screen (shown when the countdown ends) ----------
+// Same look as the game loading screen. How long it stays on screen, in milliseconds:
+const MATCH_LOADING_MS = 1500;
+let matchLoadTimer = null;
+
+function showMatchLoading() {
+  const el = $('match-loading');
+  const bar = $('match-loader-bar');
+  if (!el) return;
+  clearTimeout(matchLoadTimer);
+  if (bar) { bar.style.transition = 'none'; bar.style.width = '0%'; }
+  el.classList.remove('hidden');
+  // two frames later, start the bar so the width change is animated
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (bar) { bar.style.transition = 'width ' + MATCH_LOADING_MS + 'ms linear'; bar.style.width = '100%'; }
+  }));
+}
+
+function hideMatchLoading() {
+  clearTimeout(matchLoadTimer);
+  matchLoadTimer = null;
+  const el = $('match-loading');
+  if (el) el.classList.add('hidden');
+}
 
 ws.addEventListener('open', () => {
   wsOpen = true;
@@ -90,6 +121,8 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const screen = $(id);
   if (screen) screen.classList.add('active');
+  // Leaving the result screen (play again / main menu / exit) ends the confetti
+  if (id !== 'screen-result') stopConfetti();
 }
 
 document.querySelectorAll('[data-back]').forEach(el =>
@@ -125,6 +158,7 @@ $('input-name').addEventListener('input', () => {
 });
 $('input-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') joinGame(); });
 $('btn-play-again').addEventListener('click', () => showScreen('screen-name'));
+$('btn-main-menu').addEventListener('click', () => { phase = 'menu'; });
 $('btn-leave-match').addEventListener('click', leaveMatch);
 $('btn-cancel-wait').addEventListener('click', leaveMatch);
 
@@ -143,17 +177,23 @@ function joinGame() {
   showScreen('screen-waiting');
   $('waiting-title').textContent = 'Finding players…';
   lastRoom = null;
+  cancelSequence();
+  stopJoinTimer(); lastPlayerCount = 0;
   $('waiting-list').innerHTML = '';
   $('wait-timer').classList.remove('show');
+  phase = 'lobby';
   send('joinGame', { name: playerName, roomSize: selectedRoomSize, characterType: selectedCharacter });
 }
 
 function leaveMatch() {
   send('leaveMatch');
+  phase = 'menu';
   selfId = null;
   spectateId = null;
   gameStartTime = null;
   lastRoom = null;
+  cancelSequence();
+  stopJoinTimer(); lastPlayerCount = 0;
   latestState = { players: [], bullets: [] };
   resetInputState();
   showScreen('screen-start');
@@ -191,6 +231,7 @@ function cycleSpectate(dir) {
 }
 
 function onJoined(data) {
+  if (phase !== 'lobby') return;
   selfId = data.selfId;
   mapInfo = data.map;
   decorations = data.map.decorations || [];
@@ -201,8 +242,39 @@ const CHAR_EMOJI = { penguin: '🐧', bear: '🐻', fox: '🦊', wolf: '🐺', h
 const SOLO_WAIT_TOTAL = 20; // must match SOLO_WAIT_SECONDS on the server
 let lastRoom = null;
 
+// ---------- 5-second timer when a player joins ----------
+// Shown on the "Finding players…" screen as soon as a second player is in the room.
+const JOIN_WAIT_TOTAL = 5;
+let joinTimerId = null;
+let lastPlayerCount = 0;
+
+function stopJoinTimer() {
+  if (joinTimerId) { clearInterval(joinTimerId); joinTimerId = null; }
+}
+
+function startJoinTimer() {
+  stopJoinTimer();
+  let s = JOIN_WAIT_TOTAL;
+  const draw = () => {
+    $('wait-timer').classList.add('show');
+    $('wait-timer-fill').style.width = Math.max(0, (s / JOIN_WAIT_TOTAL) * 100) + '%';
+    $('wait-timer-text').textContent = s > 0 ? `Player joined! Match starts in ${s}s` : 'Starting…';
+  };
+  draw();
+  joinTimerId = setInterval(() => {
+    s--;
+    draw();
+    if (s <= 0) stopJoinTimer();
+  }, 1000);
+}
+
 function onRoomUpdate(data) {
+  if (phase !== 'lobby') return;
   lastRoom = data;
+  const count = data.players.length;
+  if (count >= 2 && count > lastPlayerCount) startJoinTimer();   // someone joined: (re)start 5s
+  else if (count < 2) stopJoinTimer();                           // back to solo: bot timer takes over
+  lastPlayerCount = count;
   renderLobby();
 }
 
@@ -225,15 +297,73 @@ function renderLobby() {
     li.append(avatar, name);
     list.appendChild(li);
   }
-  if (d.players.length !== 1) $('wait-timer').classList.remove('show');
+  if (d.players.length !== 1 && !joinTimerId) $('wait-timer').classList.remove('show');
 }
 
-function onCountdown(value) {
-  showScreen('screen-countdown');
-  $('countdown-number').textContent = value > 0 ? value : 'GO!';
+// ---------- Start sequence: every screen is shown, in order, none is skipped ----------
+// waiting (5s join timer) -> countdown 3-2-1-GO -> loading -> game
+// Server messages (countdown / gameStart) only TRIGGER the sequence. The screens then run on
+// their own timing, so nothing is skipped if the server sends them early, late or out of order.
+const COUNTDOWN_STEP_MS = 1000;
+let seqToken = 0;
+let seqRunning = false;
+let pendingStart = null;
+
+function cancelSequence() {
+  seqToken++;
+  seqRunning = false;
+  pendingStart = null;
+  hideMatchLoading();
+}
+
+function beginStartSequence() {
+  if (seqRunning) return;
+  seqRunning = true;
+  phase = 'starting';
+  const tok = ++seqToken;
+  const alive = () => tok === seqToken; // false once the player leaves / a new join happens
+
+  // 1. let the 5s join timer finish first
+  const waitJoin = () => {
+    if (!alive()) return;
+    if (joinTimerId) setTimeout(waitJoin, 100); else runCountdown();
+  };
+
+  // 2. countdown screen: 3, 2, 1, GO! (every number is always shown)
+  const steps = [3, 2, 1, 'GO!'];
+  const runCountdown = () => {
+    if (!alive()) return;
+    showScreen('screen-countdown');
+    let i = 0;
+    const tick = () => {
+      if (!alive()) return;
+      if (i >= steps.length) { runLoading(); return; }
+      $('countdown-number').textContent = steps[i++];
+      setTimeout(tick, COUNTDOWN_STEP_MS);
+    };
+    tick();
+  };
+
+  // 3. loading screen: stays until the server's gameStart has arrived
+  const runLoading = () => {
+    if (!alive()) return;
+    showMatchLoading();
+    setTimeout(waitStart, MATCH_LOADING_MS);
+  };
+  const waitStart = () => {
+    if (!alive()) return;
+    if (pendingStart) enterGame(pendingStart); else setTimeout(waitStart, 100);
+  };
+
+  waitJoin();
+}
+
+function onCountdown() {
+  if (phase === 'lobby') beginStartSequence(); // the countdown numbers themselves are shown by the sequence
 }
 
 function onSoloWait(data) {
+  if (phase !== 'lobby' || joinTimerId) return; // the 5s join timer has priority over the bot timer
   const s = data.secondsRemaining;
   $('wait-timer').classList.add('show');
   $('wait-timer-fill').style.width = Math.max(0, (s / SOLO_WAIT_TOTAL) * 100) + '%';
@@ -243,6 +373,16 @@ function onSoloWait(data) {
 // Only ever one render loop, even if gameStart arrives twice
 let loopRunning = false;
 function onGameStart(data) {
+  if (phase === 'lobby') { pendingStart = data; beginStartSequence(); }
+  else if (phase === 'starting') pendingStart = data;
+}
+
+// 4. last step of the sequence: show the game
+function enterGame(data) {
+  seqRunning = false;
+  pendingStart = null;
+  phase = 'game';
+  stopJoinTimer(); lastPlayerCount = 0;
   gameStartTime = data.startTime;
   spectateId = null;
   lastHpTop = -1;
@@ -250,6 +390,7 @@ function onGameStart(data) {
   resetInputState();
   showScreen('screen-game');
   resizeCanvas();
+  hideMatchLoading();
   if (!loopRunning) {
     loopRunning = true;
     lastFrame = performance.now();
@@ -259,6 +400,7 @@ function onGameStart(data) {
 
 // State messages only store data; the HUD (DOM) is refreshed at most ~8x/sec
 function onState(data) {
+  if (phase !== 'game' && phase !== 'starting') return; // keep the newest state while the screens play
   latestState = data;
   hudDirty = true;
 }
@@ -271,18 +413,132 @@ function pushFeed(text) {
   killFeedEl.appendChild(item);
   setTimeout(() => item.remove(), 3000);
 }
-function onPlayerEliminated(d) { pushFeed(`${d.name} was eliminated by ${d.by}`); }
-function onPlayerLeft(d) { pushFeed(`${d.name} left the match`); }
+function onPlayerEliminated(d) { if (phase === 'game') pushFeed(`${d.name} was eliminated by ${d.by}`); }
+function onPlayerLeft(d) { if (phase === 'game') pushFeed(`${d.name} left the match`); }
 
 const pad2 = (n) => String(n).padStart(2, '0');
 const fmtTime = (ms) => { const s = Math.floor((ms || 0) / 1000); return `${pad2(Math.floor(s / 60))}:${pad2(s % 60)}`; };
 
+/* ---------------------------------------------------------------------
+   Victory confetti (canvas overlay, only runs for the winner)
+   Two cannons shoot from the bottom corners, then confetti rains from the top.
+   Stops by itself after the last piece has fallen, or when you leave the result screen.
+   --------------------------------------------------------------------- */
+const confettiCanvas = $('confetti-canvas');
+const confettiCtx = confettiCanvas.getContext('2d');
+const CONFETTI_COLORS = ['#ffc83d', '#ff5a47', '#5ce1b9', '#fff6e0', '#2f8f8b'];
+const CONFETTI_GRAVITY = 900;   // px/s^2
+const CONFETTI_RAIN_MS = 3500;  // how long new pieces keep falling from the top
+let confettiPieces = [];
+let confettiRaf = 0;
+let confettiStartTimer = 0;
+
+function spawnConfetti(x, y, vx, vy) {
+  confettiPieces.push({
+    x, y, vx, vy,
+    w: 6 + Math.random() * 6,
+    h: 9 + Math.random() * 8,
+    rot: Math.random() * Math.PI * 2,
+    vr: (Math.random() - 0.5) * 12,
+    wob: Math.random() * Math.PI * 2,
+    color: CONFETTI_COLORS[(Math.random() * CONFETTI_COLORS.length) | 0]
+  });
+}
+
+function startConfetti() {
+  stopConfetti();
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  // wait for the title to pop in, then fire
+  confettiStartTimer = setTimeout(() => {
+    const W = confettiCanvas.width = window.innerWidth;
+    const H = confettiCanvas.height = window.innerHeight;
+    confettiCanvas.classList.add('show');
+
+    // cannon burst from both bottom corners; speed is scaled so pieces reach 60-100% of the screen height
+    for (let i = 0; i < 70; i++) {
+      const reach = H * (0.6 + Math.random() * 0.4);
+      const speed = Math.sqrt(2 * CONFETTI_GRAVITY * reach);
+      const aL = -(Math.PI / 4 + Math.random() * Math.PI / 4);        // up and to the right
+      const aR = -(Math.PI / 2 + Math.random() * Math.PI / 4);        // up and to the left
+      spawnConfetti(0, H, Math.cos(aL) * speed, Math.sin(aL) * speed);
+      spawnConfetti(W, H, Math.cos(aR) * speed, Math.sin(aR) * speed);
+    }
+
+    const rainUntil = performance.now() + CONFETTI_RAIN_MS;
+    let last = performance.now();
+
+    const frame = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+
+      // steady rain from the top while the timer runs
+      if (now < rainUntil) {
+        const n = Math.round(90 * dt + Math.random());
+        for (let i = 0; i < n; i++) spawnConfetti(Math.random() * W, -20, (Math.random() - 0.5) * 120, 80 + Math.random() * 160);
+      }
+
+      confettiCtx.clearRect(0, 0, W, H);
+      confettiPieces = confettiPieces.filter(p => p.y < H + 30);
+      for (const p of confettiPieces) {
+        p.vy += CONFETTI_GRAVITY * dt;
+        p.vx *= 1 - 0.8 * dt;                       // air drag sideways
+        if (p.vy > 380) p.vy = 380;                 // terminal speed so pieces flutter down
+        p.wob += dt * 6;
+        p.x += (p.vx + Math.sin(p.wob) * 40) * dt;
+        p.y += p.vy * dt;
+        p.rot += p.vr * dt;
+
+        confettiCtx.save();
+        confettiCtx.translate(p.x, p.y);
+        confettiCtx.rotate(p.rot);
+        confettiCtx.scale(1, Math.cos(p.wob));      // flip effect
+        confettiCtx.fillStyle = p.color;
+        confettiCtx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        confettiCtx.restore();
+      }
+
+      if (now < rainUntil || confettiPieces.length) confettiRaf = requestAnimationFrame(frame);
+      else stopConfetti();
+    };
+    confettiRaf = requestAnimationFrame(frame);
+  }, 350);
+}
+
+function stopConfetti() {
+  clearTimeout(confettiStartTimer);
+  cancelAnimationFrame(confettiRaf);
+  confettiRaf = 0;
+  confettiPieces = [];
+  confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+  confettiCanvas.classList.remove('show');
+}
+
+window.addEventListener('resize', () => {
+  if (confettiCanvas.classList.contains('show')) {
+    confettiCanvas.width = window.innerWidth;
+    confettiCanvas.height = window.innerHeight;
+  }
+});
+
 function onMatchResult(data) {
-  const isWinner = data.winner && data.winner.name === playerName;
-  const title = $('result-title');
-  title.textContent = isWinner ? 'VICTORY!' : 'DEFEATED';
-  title.style.color = isWinner ? '#ffc83d' : '#ff5a47';
-  $('result-sub').textContent = data.winner ? `Winner: ${data.winner.name}` : 'No survivors';
+  if (phase !== 'game' && phase !== 'starting') return;
+  cancelSequence(); // match already over: stop the start screens and show the result
+  phase = 'result';
+
+  const winnerName = data.winner ? data.winner.name : null;
+  const isWinner = !!winnerName && winnerName === playerName;
+
+  // .win / .lose drive the CSS animations (crown, title pop, banner shine, row pulse)
+  const screen = $('screen-result');
+  screen.classList.remove('win', 'lose');
+  screen.classList.add(isWinner ? 'win' : 'lose');
+
+  $('result-title').textContent = isWinner ? 'VICTORY!' : 'DEFEATED';
+
+  // Winner banner: bright pill, mint when it is you
+  const sub = $('result-sub');
+  sub.textContent = winnerName ? `👑 Winner: ${winnerName}` : 'No survivors';
+  sub.classList.toggle('is-me', isWinner);
 
   const self = data.players.find(p => p.name === playerName);
   $('result-kills').textContent = `Kills: ${self ? self.kills : 0}`;
@@ -290,17 +546,27 @@ function onMatchResult(data) {
 
   const listEl = $('result-list');
   listEl.innerHTML = '';
-  [...data.players].sort((a, b) => b.kills - a.kills).forEach((p, i) => {
+  // winner always first, then everyone else by kills
+  const sorted = [...data.players].sort((a, b) => {
+    if (a.name === winnerName) return -1;
+    if (b.name === winnerName) return 1;
+    return b.kills - a.kills;
+  });
+  sorted.forEach((p, i) => {
     const row = document.createElement('div');
+    if (p.name === winnerName) row.className = 'winner-row';
+    if (p.name === playerName) row.classList.add('me-row');
+    row.style.setProperty('--i', i); // stagger delay for the row-in animation
     const a = document.createElement('span');
     const b = document.createElement('span');
-    a.textContent = `${i + 1}. ${p.name}`;
+    a.textContent = `${i + 1}. ${p.name}${p.name === winnerName ? ' 👑' : ''}`;
     b.textContent = `${p.kills} Kills`;
     row.append(a, b);
     listEl.appendChild(row);
   });
   resetInputState();
   showScreen('screen-result');
+  if (isWinner) startConfetti();
 }
 
 // ---------- Canvas ----------
@@ -786,3 +1052,898 @@ function drawHorse(a) {
   ell(-9, -11, 5, 16, '#3b2417');
   ctx.fillStyle = '#704526'; ctx.fillRect(-12, 15, 6, 13); ctx.fillRect(6, 15, 6, 13);
 }
+
+
+//
+//'use strict';
+//
+///* =====================================================================
+//   BATTLE ARENA — client (v9: 5s join timer + match loading screen)
+//   ===================================================================== */
+//
+//// For the Android (Capacitor) build, set your server host, e.g. 'battle.example.com'.
+//// Leave empty when the game is served by the same server (browser build).
+//const REMOTE_HOST = '';
+//
+//const $ = (id) => document.getElementById(id);
+//const wsProtocol = (REMOTE_HOST || window.location.protocol === 'https:') ? 'wss://' : 'ws://';
+//const ws = new WebSocket(wsProtocol + (REMOTE_HOST || window.location.host) + '/game');
+//const pendingQueue = [];
+//let wsOpen = false;
+//
+//// ---------- Variables used by early functions (MUST be declared before first use) ----------
+//let lastHpTop = -1;
+//let hudDirty = false;
+//let lastBoardSig = '';
+//let lastHudAt = 0;
+//let lastFrame = 0;
+//let groundPattern = null;
+//
+//// Which part of the flow the player is in. Server messages that do not belong to the
+//// current phase (late / out-of-order) are ignored, so screens can never jump around.
+//// menu -> lobby -> game -> result
+//let phase = 'menu';
+//
+//// ---------- Loading screen ----------
+//function hideLoadingScreen() {
+//  const loader = $('loading-screen');
+//  if (!loader) return;
+//  loader.classList.add('hidden');
+//  setTimeout(() => loader.remove(), 400);
+//}
+//
+//const LOADING_MIN_MS = 2500;
+//const loaderBar = $('loader-bar');
+//// If the splash already finished before this script loaded, start from now
+//let splashDoneAt = window.__splashDone ? Date.now() : 0;
+//window.addEventListener('splash-done', () => { splashDoneAt = Date.now(); });
+//
+//const loaderInterval = setInterval(() => {
+//  if (!splashDoneAt) return;
+//  const elapsed = Date.now() - splashDoneAt;
+//  const pct = Math.min((elapsed / LOADING_MIN_MS) * 100, wsOpen ? 100 : 92);
+//  if (loaderBar) loaderBar.style.width = pct + '%';
+//  if (pct >= 100) {
+//    clearInterval(loaderInterval);
+//    setTimeout(hideLoadingScreen, 300);
+//  } else if (elapsed > 10000 && !wsOpen) {
+//    const t = document.querySelector('.loader-text');
+//    if (t) t.textContent = 'Cannot reach the server. Check your connection.';
+//  }
+//}, 100);
+//
+//// ---------- Short match loading screen (shown when the countdown ends) ----------
+//// Same look as the game loading screen. How long it stays on screen, in milliseconds:
+//const MATCH_LOADING_MS = 1500;
+//let matchLoadTimer = null;
+//
+//function showMatchLoading() {
+//  const el = $('match-loading');
+//  const bar = $('match-loader-bar');
+//  if (!el) return;
+//  clearTimeout(matchLoadTimer);
+//  if (bar) { bar.style.transition = 'none'; bar.style.width = '0%'; }
+//  el.classList.remove('hidden');
+//  // two frames later, start the bar so the width change is animated
+//  requestAnimationFrame(() => requestAnimationFrame(() => {
+//    if (bar) { bar.style.transition = 'width ' + MATCH_LOADING_MS + 'ms linear'; bar.style.width = '100%'; }
+//  }));
+//}
+//
+//function hideMatchLoading() {
+//  clearTimeout(matchLoadTimer);
+//  matchLoadTimer = null;
+//  const el = $('match-loading');
+//  if (el) el.classList.add('hidden');
+//}
+//
+//ws.addEventListener('open', () => {
+//  wsOpen = true;
+//  while (pendingQueue.length) ws.send(pendingQueue.shift());
+//});
+//
+//ws.addEventListener('close', () => {
+//  wsOpen = false;
+//  if ($('screen-game').classList.contains('active')) pushFeed('Connection lost');
+//});
+//
+//// High-frequency messages (input/shoot) are dropped while offline instead of queued.
+//function send(type, data) {
+//  const payload = JSON.stringify({ type, data: data || {} });
+//  if (wsOpen) ws.send(payload);
+//  else if (type !== 'input' && type !== 'shoot') pendingQueue.push(payload);
+//}
+//
+//ws.addEventListener('message', (event) => {
+//  let msg;
+//  try { msg = JSON.parse(event.data); } catch (e) { return; }
+//  try {
+//    handleServerMessage(msg.type, msg.data);
+//  } catch (e) {
+//    console.error('Error handling message', msg.type, e);
+//  }
+//});
+//
+//function handleServerMessage(type, data) {
+//  const handlers = {
+//    joined: onJoined, roomUpdate: onRoomUpdate, countdown: onCountdown,
+//    soloWait: onSoloWait, gameStart: onGameStart, state: onState,
+//    playerEliminated: onPlayerEliminated, playerLeft: onPlayerLeft, matchResult: onMatchResult
+//  };
+//  if (handlers[type]) handlers[type](data);
+//}
+//
+//// ---------- Screen navigation ----------
+//function showScreen(id) {
+//  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+//  const screen = $(id);
+//  if (screen) screen.classList.add('active');
+//}
+//
+//document.querySelectorAll('[data-back]').forEach(el =>
+//  el.addEventListener('click', () => showScreen(el.dataset.back)));
+//
+//$('btn-play').addEventListener('click', () => showScreen('screen-room-size'));
+//$('btn-howto').addEventListener('click', () => showScreen('screen-howto'));
+//$('btn-settings').addEventListener('click', () => showScreen('screen-settings'));
+//$('btn-about').addEventListener('click', () => showScreen('screen-about'));
+//
+//// ---------- Room size -> character -> name ----------
+//let selectedRoomSize = 4;
+//document.querySelectorAll('.room-size-btn').forEach(btn =>
+//  btn.addEventListener('click', () => {
+//    selectedRoomSize = parseInt(btn.dataset.size, 10);
+//    showScreen('screen-character');
+//  }));
+//
+//let selectedCharacter = 'penguin';
+//document.querySelectorAll('.character-card').forEach(card =>
+//  card.addEventListener('click', () => {
+//    if (card.dataset.available !== 'true') return;
+//    selectedCharacter = card.dataset.character;
+//    document.querySelectorAll('.character-card').forEach(c => c.classList.remove('selected'));
+//    card.classList.add('selected');
+//  }));
+//
+//$('btn-character-continue').addEventListener('click', () => showScreen('screen-name'));
+//$('btn-join').addEventListener('click', joinGame);
+//$('input-name').addEventListener('input', () => {
+//  $('name-error').textContent = '';
+//  $('input-name').classList.remove('invalid');
+//});
+//$('input-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') joinGame(); });
+//$('btn-play-again').addEventListener('click', () => showScreen('screen-name'));
+//$('btn-main-menu').addEventListener('click', () => { phase = 'menu'; });
+//$('btn-leave-match').addEventListener('click', leaveMatch);
+//$('btn-cancel-wait').addEventListener('click', leaveMatch);
+//
+//let playerName = '';
+//
+//function joinGame() {
+//  playerName = $('input-name').value.trim().replace(/[<>]/g, '');
+//  if (playerName.length < 2) {
+//    $('name-error').textContent = 'Enter a name (at least 2 characters) to join.';
+//    $('input-name').classList.add('invalid');
+//    $('input-name').focus();
+//    return;
+//  }
+//  $('name-error').textContent = '';
+//  $('input-name').classList.remove('invalid');
+//  showScreen('screen-waiting');
+//  $('waiting-title').textContent = 'Finding players…';
+//  lastRoom = null;
+//  cancelSequence();
+//  $('waiting-list').innerHTML = '';
+//  $('wait-timer').classList.remove('show');
+//  phase = 'lobby';
+//  send('joinGame', { name: playerName, roomSize: selectedRoomSize, characterType: selectedCharacter });
+//}
+//
+//function leaveMatch() {
+//  send('leaveMatch');
+//  phase = 'menu';
+//  selfId = null;
+//  spectateId = null;
+//  gameStartTime = null;
+//  lastRoom = null;
+//  cancelSequence();
+//  latestState = { players: [], bullets: [] };
+//  resetInputState();
+//  showScreen('screen-start');
+//}
+//
+//// ---------- Game state ----------
+//let selfId = null;
+//let mapInfo = { width: 1600, height: 1200, walls: [] };
+//let latestState = { players: [], bullets: [] };
+//let gameStartTime = null;
+//let decorations = [];
+//
+//// ---------- Spectator mode ----------
+//let spectateId = null;
+//const selfPlayer = () => latestState.players.find(p => p.id === selfId);
+//const isSpectating = () => { const me = selfPlayer(); return !!me && !me.alive; };
+//const aliveOthers = () => latestState.players.filter(p => p.alive && p.id !== selfId);
+//
+//function viewedPlayer() {
+//  const me = selfPlayer();
+//  if (!me || me.alive) return me;
+//  const others = aliveOthers();
+//  if (!others.length) return me;
+//  let target = others.find(p => p.id === spectateId);
+//  if (!target) { target = others[0]; spectateId = target.id; }
+//  return target;
+//}
+//
+//function cycleSpectate(dir) {
+//  const others = aliveOthers();
+//  if (!others.length) return;
+//  const i = others.findIndex(p => p.id === spectateId);
+//  spectateId = others[(i + dir + others.length) % others.length].id;
+//  updateHUD();
+//}
+//
+//function onJoined(data) {
+//  if (phase !== 'lobby') return;
+//  selfId = data.selfId;
+//  mapInfo = data.map;
+//  decorations = data.map.decorations || [];
+//  renderLobby();
+//}
+//
+//const CHAR_EMOJI = { penguin: '🐧', bear: '🐻', fox: '🦊', wolf: '🐺', horse: '🐴' };
+//const SOLO_WAIT_TOTAL = 20; // must match SOLO_WAIT_SECONDS on the server
+//let lastRoom = null;
+//
+//function onRoomUpdate(data) {
+//  if (phase !== 'lobby') return;
+//  lastRoom = data;
+//  renderLobby();
+//}
+//
+//function renderLobby() {
+//  if (!lastRoom) return;
+//  const d = lastRoom;
+//  $('player-count').textContent = `Players: ${d.players.length}/${d.maxPlayers}`;
+//  const list = $('waiting-list');
+//  list.innerHTML = '';
+//  for (let i = 0; i < d.maxPlayers; i++) {
+//    const p = d.players[i];
+//    const li = document.createElement('li');
+//    li.className = 'slot' + (p ? ' filled' : '') + (p && p.id === selfId ? ' me' : '');
+//    const avatar = document.createElement('span');
+//    avatar.className = 'slot-avatar';
+//    avatar.textContent = p ? (CHAR_EMOJI[p.characterType] || '🐧') : '?';
+//    const name = document.createElement('span');
+//    name.className = 'slot-name';
+//    name.textContent = p ? p.name + (p.id === selfId ? ' (you)' : '') : 'Waiting…';
+//    li.append(avatar, name);
+//    list.appendChild(li);
+//  }
+//  if (d.players.length !== 1) $('wait-timer').classList.remove('show');
+//}
+//
+//// ---------- Start sequence: every screen is shown, in order, none is skipped ----------
+//// waiting (5s join timer) -> countdown 3-2-1-GO -> loading -> game
+//// Server messages (countdown / gameStart) only TRIGGER the sequence. The screens then run on
+//// their own timing, so nothing is skipped if the server sends them early, late or out of order.
+//const COUNTDOWN_STEP_MS = 1000;
+//let seqToken = 0;
+//let seqRunning = false;
+//let pendingStart = null;
+//
+//function cancelSequence() {
+//  seqToken++;
+//  seqRunning = false;
+//  pendingStart = null;
+//  hideMatchLoading();
+//}
+//
+//function beginStartSequence() {
+//  if (seqRunning) return;
+//  seqRunning = true;
+//  phase = 'starting';
+//  const tok = ++seqToken;
+//  const alive = () => tok === seqToken; // false once the player leaves / a new join happens
+//
+//  // 1. countdown screen: 3, 2, 1, GO! (every number is always shown)
+//  const steps = [3, 2, 1, 'GO!'];
+//  const runCountdown = () => {
+//    if (!alive()) return;
+//    showScreen('screen-countdown');
+//    let i = 0;
+//    const tick = () => {
+//      if (!alive()) return;
+//      if (i >= steps.length) { runLoading(); return; }
+//      $('countdown-number').textContent = steps[i++];
+//      setTimeout(tick, COUNTDOWN_STEP_MS);
+//    };
+//    tick();
+//  };
+//
+//  // 3. loading screen: stays until the server's gameStart has arrived
+//  const runLoading = () => {
+//    if (!alive()) return;
+//    showMatchLoading();
+//    setTimeout(waitStart, MATCH_LOADING_MS);
+//  };
+//  const waitStart = () => {
+//    if (!alive()) return;
+//    if (pendingStart) enterGame(pendingStart); else setTimeout(waitStart, 100);
+//  };
+//
+//  runCountdown();
+//}
+//
+//function onCountdown() {
+//  if (phase === 'lobby') beginStartSequence(); // the countdown numbers themselves are shown by the sequence
+//}
+//
+//function onSoloWait(data) {
+//  if (phase !== 'lobby') return;
+//  const s = data.secondsRemaining;
+//  $('wait-timer').classList.add('show');
+//  $('wait-timer-fill').style.width = Math.max(0, (s / SOLO_WAIT_TOTAL) * 100) + '%';
+//  $('wait-timer-text').textContent = `No opponents yet. Bots join in ${s}s`;
+//}
+//
+//// Only ever one render loop, even if gameStart arrives twice
+//let loopRunning = false;
+//function onGameStart(data) {
+//  if (phase === 'lobby') { pendingStart = data; beginStartSequence(); }
+//  else if (phase === 'starting') pendingStart = data;
+//}
+//
+//// 4. last step of the sequence: show the game
+//function enterGame(data) {
+//  seqRunning = false;
+//  pendingStart = null;
+//  phase = 'game';
+//  gameStartTime = data.startTime;
+//  spectateId = null;
+//  lastHpTop = -1;
+//  smooth.clear();
+//  resetInputState();
+//  showScreen('screen-game');
+//  resizeCanvas();
+//  hideMatchLoading();
+//  if (!loopRunning) {
+//    loopRunning = true;
+//    lastFrame = performance.now();
+//    requestAnimationFrame(renderLoop);
+//  }
+//}
+//
+//// State messages only store data; the HUD (DOM) is refreshed at most ~8x/sec
+//function onState(data) {
+//  if (phase !== 'game' && phase !== 'starting') return; // keep the newest state while the screens play
+//  latestState = data;
+//  hudDirty = true;
+//}
+//
+//const killFeedEl = $('kill-feed');
+//function pushFeed(text) {
+//  const item = document.createElement('div');
+//  item.className = 'kill-feed-item';
+//  item.textContent = text;
+//  killFeedEl.appendChild(item);
+//  setTimeout(() => item.remove(), 3000);
+//}
+//function onPlayerEliminated(d) { if (phase === 'game') pushFeed(`${d.name} was eliminated by ${d.by}`); }
+//function onPlayerLeft(d) { if (phase === 'game') pushFeed(`${d.name} left the match`); }
+//
+//const pad2 = (n) => String(n).padStart(2, '0');
+//const fmtTime = (ms) => { const s = Math.floor((ms || 0) / 1000); return `${pad2(Math.floor(s / 60))}:${pad2(s % 60)}`; };
+//
+//function onMatchResult(data) {
+//  if (phase !== 'game' && phase !== 'starting') return;
+//  cancelSequence(); // match already over: stop the start screens and show the result
+//  phase = 'result';
+//  const isWinner = data.winner && data.winner.name === playerName;
+//  const title = $('result-title');
+//  title.textContent = isWinner ? 'VICTORY!' : 'DEFEATED';
+//  title.style.color = isWinner ? '#ffc83d' : '#ff5a47';
+//  $('result-sub').textContent = data.winner ? `Winner: ${data.winner.name}` : 'No survivors';
+//
+//  const self = data.players.find(p => p.name === playerName);
+//  $('result-kills').textContent = `Kills: ${self ? self.kills : 0}`;
+//  $('result-time').textContent = `Survival Time: ${fmtTime(data.elapsed)}`;
+//
+//  const listEl = $('result-list');
+//  listEl.innerHTML = '';
+//  [...data.players].sort((a, b) => b.kills - a.kills).forEach((p, i) => {
+//    const row = document.createElement('div');
+//    const a = document.createElement('span');
+//    const b = document.createElement('span');
+//    a.textContent = `${i + 1}. ${p.name}`;
+//    b.textContent = `${p.kills} Kills`;
+//    row.append(a, b);
+//    listEl.appendChild(row);
+//  });
+//  resetInputState();
+//  showScreen('screen-result');
+//}
+//
+//// ---------- Canvas ----------
+//const canvas = $('game-canvas');
+//const ctx = canvas.getContext('2d');
+//let exitRect = { left: 12, bottom: 40 };
+//function resizeCanvas() {
+//  canvas.width = window.innerWidth;
+//  canvas.height = window.innerHeight;
+//  cacheExitRect();
+//}
+//// Measuring the Exit button every frame forced layout work; cache it instead
+//function cacheExitRect() {
+//  const r = $('btn-leave-match').getBoundingClientRect();
+//  if (r.width) exitRect = { left: r.left, bottom: r.bottom };
+//  lastHpTop = -1;
+//}
+//window.addEventListener('resize', resizeCanvas);
+//window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 250));
+//
+//// ---------- Keyboard / mouse / touch ----------
+//// (declared BEFORE resizeCanvas() / any function that uses them is called)
+//const keys = { up: false, down: false, left: false, right: false };
+//const KEYMAP = { w: 'up', arrowup: 'up', s: 'down', arrowdown: 'down', a: 'left', arrowleft: 'left', d: 'right', arrowright: 'right' };
+//let mouseX = 0, mouseY = 0, aimAngle = 0, mouseDown = false, touchAiming = false;
+//let lastSent = null, lastSentAt = 0;
+//const smooth = new Map();
+//
+//resizeCanvas();
+//
+//// Stuck keys / stuck shooting when the tab loses focus or the screen changes
+//function resetInputState() {
+//  keys.up = keys.down = keys.left = keys.right = false;
+//  mouseDown = false;
+//  touchAiming = false;
+//  lastSent = null;
+//  ['joystick-move-knob', 'joystick-aim-knob'].forEach(id => {
+//    const k = $(id); if (k) k.style.transform = 'translate(-50%, -50%)';
+//  });
+//}
+//window.addEventListener('blur', resetInputState);
+//document.addEventListener('visibilitychange', () => { if (document.hidden) resetInputState(); });
+//
+//window.addEventListener('keydown', (e) => {
+//  if (e.target.tagName === 'INPUT') return;
+//  const k = e.key.toLowerCase();
+//  if (isSpectating()) {
+//    if (k === 'a' || k === 'arrowleft') cycleSpectate(-1);
+//    else if (k === 'd' || k === 'arrowright') cycleSpectate(1);
+//    return;
+//  }
+//  if (KEYMAP[k]) keys[KEYMAP[k]] = true;
+//  else if (k === 'r' && !e.repeat) send('reload');
+//});
+//window.addEventListener('keyup', (e) => {
+//  const k = e.key.toLowerCase();
+//  if (KEYMAP[k]) keys[KEYMAP[k]] = false;
+//});
+//
+//canvas.addEventListener('mousemove', (e) => { mouseX = e.clientX; mouseY = e.clientY; });
+//canvas.addEventListener('mousedown', () => {
+//  if (isSpectating()) cycleSpectate(1); else mouseDown = true;
+//});
+//window.addEventListener('mouseup', () => { mouseDown = false; });
+//$('btn-reload-mobile').addEventListener('click', () => send('reload'));
+//$('btn-spec-prev').addEventListener('click', () => cycleSpectate(-1));
+//$('btn-spec-next').addEventListener('click', () => cycleSpectate(1));
+//
+//// The joystick reacts on the very first touch (not only after the finger moves)
+//function setupJoystick(baseEl, knobEl, onMove, onEnd) {
+//  let baseRect = null, touchId = null;
+//
+//  function apply(t) {
+//    const dx = t.clientX - (baseRect.left + baseRect.width / 2);
+//    const dy = t.clientY - (baseRect.top + baseRect.height / 2);
+//    const max = baseRect.width / 2;
+//    const dist = Math.min(Math.hypot(dx, dy), max);
+//    const angle = Math.atan2(dy, dx);
+//    knobEl.style.transform = `translate(calc(-50% + ${Math.cos(angle) * dist}px), calc(-50% + ${Math.sin(angle) * dist}px))`;
+//    onMove(dx / max, dy / max, dist / max, angle);
+//  }
+//
+//  baseEl.addEventListener('touchstart', (e) => {
+//    e.preventDefault();
+//    if (touchId !== null) return; // already held by another finger
+//    const t = e.changedTouches[0];
+//    touchId = t.identifier;
+//    baseRect = baseEl.getBoundingClientRect();
+//    apply(t);
+//  }, { passive: false });
+//
+//  window.addEventListener('touchmove', (e) => {
+//    if (touchId === null) return;
+//    const t = [...e.changedTouches].find(x => x.identifier === touchId);
+//    if (!t) return;
+//    e.preventDefault();
+//    apply(t);
+//  }, { passive: false });
+//
+//  const end = (e) => {
+//    if (touchId === null) return;
+//    if (![...e.changedTouches].some(x => x.identifier === touchId)) return;
+//    touchId = null;
+//    knobEl.style.transform = 'translate(-50%, -50%)';
+//    onEnd();
+//  };
+//  window.addEventListener('touchend', end, { passive: false });
+//  window.addEventListener('touchcancel', end, { passive: false });
+//}
+//
+//setupJoystick($('joystick-move'), $('joystick-move-knob'),
+//  (nx, ny) => { keys.up = ny < -0.3; keys.down = ny > 0.3; keys.left = nx < -0.3; keys.right = nx > 0.3; },
+//  () => { keys.up = keys.down = keys.left = keys.right = false; });
+//
+//setupJoystick($('joystick-aim'), $('joystick-aim-knob'),
+//  (nx, ny, strength, angle) => { aimAngle = angle; touchAiming = strength > 0.2; },
+//  () => { touchAiming = false; });
+//
+//// ---------- Input loop (30 Hz tick) ----------
+//// 'input' is only sent when something changed (plus a 150 ms heartbeat).
+//const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+//
+//setInterval(() => {
+//  if (!selfId || isSpectating() || !$('screen-game').classList.contains('active')) return;
+//  const me = selfPlayer();
+//  if (!isTouch && me) {
+//    const sm = smoothPos(me);
+//    const sp = worldToScreen(sm.x, sm.y);
+//    aimAngle = Math.atan2(mouseY - sp.y, mouseX - sp.x);
+//  }
+//  const msg = { up: keys.up, down: keys.down, left: keys.left, right: keys.right, angle: aimAngle };
+//  const now = performance.now();
+//  let changed = !lastSent || lastSent.up !== msg.up || lastSent.down !== msg.down ||
+//                lastSent.left !== msg.left || lastSent.right !== msg.right;
+//  if (!changed) {
+//    const d = msg.angle - lastSent.angle;
+//    changed = Math.abs(Math.atan2(Math.sin(d), Math.cos(d))) > 0.03;
+//  }
+//  if (changed || now - lastSentAt > 150) {
+//    send('input', msg);
+//    lastSent = msg;
+//    lastSentAt = now;
+//  }
+//  if (mouseDown || touchAiming) send('shoot');
+//}, 1000 / 30);
+//
+//// ---------- Smoothing (hides network jitter so movement looks fluid) ----------
+//function smoothPos(p) {
+//  let s = smooth.get(p.id);
+//  if (!s) { s = { x: p.x, y: p.y }; smooth.set(p.id, s); }
+//  return s;
+//}
+//function stepSmoothing(dt) {
+//  const k = 1 - Math.exp(-dt * 28);
+//  latestState.players.forEach(p => {
+//    const s = smoothPos(p);
+//    if (Math.abs(p.x - s.x) > 250 || Math.abs(p.y - s.y) > 250) { s.x = p.x; s.y = p.y; }
+//    else { s.x += (p.x - s.x) * k; s.y += (p.y - s.y) * k; }
+//  });
+//}
+//
+//// ---------- Camera ----------
+//let camX = 0, camY = 0;
+//function updateCamera() {
+//  const me = viewedPlayer();
+//  if (me) { const s = smoothPos(me); camX = s.x - canvas.width / 2; camY = s.y - canvas.height / 2; }
+//}
+//function worldToScreen(x, y) { return { x: x - camX, y: y - camY }; }
+//
+//// ---------- HUD ----------
+//function updateHUD() {
+//  const spec = isSpectating();
+//  $('screen-game').classList.toggle('spectating', spec);
+//  const me = viewedPlayer();
+//  if (spec) {
+//    $('spectate-name').textContent = me && me.id !== selfId ? 'Spectating ' + me.name : 'Waiting for result…';
+//  }
+//  if (me) {
+//    const hp = Math.max(0, me.health);
+//    $('hp-bar').style.width = hp + '%';
+//    $('hp-text').textContent = `${hp} / 100`;
+//    $('ammo-text').textContent = me.reloading ? 'Reloading…' : `${me.ammo} / ${me.reserveAmmo}`;
+//  }
+//  $('alive-count').textContent = `PLAYERS: ${latestState.players.filter(p => p.alive).length}`;
+//  $('timer').textContent = fmtTime(latestState.elapsed);
+//
+//  // Leaderboard: top 3 plus your own row; the DOM is rebuilt only when its content changes
+//  const ranked = [...latestState.players].sort((a, b) => b.kills - a.kills);
+//  const rows = ranked.slice(0, 3).map((p, i) => ({ p, i }));
+//  const myIdx = ranked.findIndex(p => p.id === selfId);
+//  if (myIdx >= 3) rows.push({ p: ranked[myIdx], i: myIdx });
+//  const sig = rows.map(({ p, i }) => `${i}|${p.name}|${p.kills}|${p.alive}|${p.id === selfId}`).join(';');
+//  if (sig === lastBoardSig) return;
+//  lastBoardSig = sig;
+//
+//  const board = $('leaderboard');
+//  board.innerHTML = '';
+//  const head = document.createElement('div');
+//  head.style.cssText = 'font-weight:800;margin-bottom:4px;';
+//  head.textContent = 'Leaderboard';
+//  board.appendChild(head);
+//  rows.forEach(({ p, i }) => {
+//    const row = document.createElement('div');
+//    row.textContent = `${i + 1}. ${p.name} — ${p.kills} Kills${p.alive ? '' : ' 💀'}`;
+//    if (p.id === selfId) row.style.color = '#5ce1b9';
+//    board.appendChild(row);
+//  });
+//}
+//
+///* =====================================================================
+//   RENDERING — arena theme (matches the UI palette)
+//   ===================================================================== */
+//const INK = '#0a1f1e';
+//const ROOFS = [['#ff5a47', '#e24632'], ['#2f8f8b', '#23706c'], ['#ffc83d', '#e0a91f']];
+//
+//function renderLoop(now) {
+//  if (!$('screen-game').classList.contains('active')) { loopRunning = false; return; }
+//
+//  const dt = Math.min(0.1, Math.max(0.001, ((now || performance.now()) - lastFrame) / 1000));
+//  lastFrame = now || performance.now();
+//  stepSmoothing(dt);
+//
+//  if (hudDirty && lastFrame - lastHudAt > 120) {
+//    hudDirty = false; lastHudAt = lastFrame;
+//    updateHUD();
+//  }
+//
+//  updateCamera();
+//  ctx.clearRect(0, 0, canvas.width, canvas.height);
+//  drawBackground();
+//  drawDecorations();
+//  mapInfo.walls.forEach(w => {
+//    const p = worldToScreen(w.x, w.y);
+//    drawWorldWall(p.x, p.y, w.w, w.h, w.type);
+//  });
+//
+//  ctx.fillStyle = '#ffd23a';
+//  latestState.bullets.forEach(b => {
+//    const p = worldToScreen(b.x, b.y);
+//    ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill();
+//  });
+//
+//  latestState.players.forEach(pl => {
+//    if (!pl.alive) return;
+//    const sp = smoothPos(pl);
+//    const p = worldToScreen(sp.x, sp.y);
+//    const mine = pl.id === selfId;
+//    ctx.save();
+//    ctx.globalAlpha = 0.28; ctx.fillStyle = mine ? '#ffffff' : (pl.color || '#ff5a47');
+//    ctx.beginPath(); ctx.ellipse(p.x, p.y + 20, 26, 11, 0, 0, Math.PI * 2); ctx.fill();
+//    ctx.globalAlpha = 1; ctx.lineWidth = mine ? 4 : 3; ctx.strokeStyle = mine ? '#fff6e0' : (pl.color || '#ff5a47');
+//    ctx.stroke();
+//    ctx.restore();
+//    drawCharacter(p.x, p.y, pl.angle, pl.characterType);
+//    if (mine) tri([[p.x - 7, p.y - 66], [p.x + 7, p.y - 66], [p.x, p.y - 56]], '#5ce1b9');
+//
+//    // Stroke outline instead of shadowBlur (shadowBlur is very slow on phones)
+//    ctx.font = 'bold 13px "Barlow Semi Condensed", sans-serif';
+//    ctx.textAlign = 'center';
+//    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineJoin = 'round';
+//    ctx.strokeText(pl.name, p.x, p.y - 44);
+//    ctx.fillStyle = mine ? '#5ce1b9' : '#ffb3a8';
+//    ctx.fillText(pl.name, p.x, p.y - 44);
+//
+//    const barW = 42;
+//    ctx.fillStyle = INK; ctx.fillRect(p.x - barW / 2 - 1, p.y - 39, barW + 2, 8);
+//    ctx.fillStyle = mine ? '#5ce1b9' : '#ff5a47';
+//    ctx.fillRect(p.x - barW / 2, p.y - 38, barW * Math.max(0, pl.health) / 100, 6);
+//  });
+//
+//  drawMinimap();
+//  requestAnimationFrame(renderLoop);
+//}
+//
+//function makeGround() {
+//  const t = document.createElement('canvas');
+//  t.width = t.height = 160;
+//  const g = t.getContext('2d');
+//  g.fillStyle = '#74b45e'; g.fillRect(0, 0, 160, 160);
+//  g.fillStyle = '#6dac58'; g.fillRect(0, 0, 80, 80); g.fillRect(80, 80, 80, 80);
+//  g.strokeStyle = '#5b9a48'; g.lineWidth = 3; g.lineCap = 'round';
+//  [[30, 40], [120, 30], [55, 125], [135, 135], [100, 75]].forEach(([x, y]) => {
+//    g.beginPath(); g.moveTo(x, y); g.lineTo(x - 3, y - 9); g.moveTo(x, y); g.lineTo(x + 4, y - 8); g.stroke();
+//  });
+//  return ctx.createPattern(t, 'repeat');
+//}
+//
+//function drawBackground() {
+//  if (!groundPattern) groundPattern = makeGround();
+//  ctx.save();
+//  ctx.translate(-camX, -camY);
+//  ctx.fillStyle = groundPattern;
+//  ctx.fillRect(camX, camY, canvas.width, canvas.height);
+//  ctx.restore();
+//
+//  ctx.save();
+//  ctx.fillStyle = INK;
+//  ctx.beginPath();
+//  ctx.rect(0, 0, canvas.width, canvas.height);
+//  ctx.rect(-camX, -camY, mapInfo.width, mapInfo.height);
+//  ctx.fill('evenodd');
+//  ctx.restore();
+//}
+//
+//function drawDecorations() {
+//  decorations.forEach(d => {
+//    const p = worldToScreen(d.x, d.y);
+//    if (p.x < -100 || p.x > canvas.width + 100 || p.y < -100 || p.y > canvas.height + 100) return;
+//    if (d.type === 'tree') drawTree(p.x, p.y);
+//    else if (d.type === 'bush') drawBush(p.x, p.y);
+//    else if (d.type === 'grassPatch') drawGrassPatch(p.x, p.y);
+//  });
+//}
+//
+//function drawTree(x, y) {
+//  ctx.fillStyle = 'rgba(10,31,30,0.3)';
+//  ctx.beginPath(); ctx.ellipse(x + 6, y + 22, 30, 10, 0, 0, Math.PI * 2); ctx.fill();
+//  ctx.fillStyle = '#7a4e2a'; ctx.fillRect(x - 6, y - 8, 12, 28);
+//  ctx.lineWidth = 3; ctx.strokeStyle = INK;
+//  [[0, -30, 28, '#2f8a4a'], [-15, -16, 19, '#3a9d57'], [15, -16, 19, '#3a9d57']].forEach(([dx, dy, r, c]) => {
+//    ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x + dx, y + dy, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+//  });
+//  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+//  ctx.beginPath(); ctx.arc(x - 8, y - 38, 8, 0, Math.PI * 2); ctx.fill();
+//}
+//
+//function drawBush(x, y) {
+//  ctx.fillStyle = '#3f9d5a'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+//  [[-11, 0, 14], [11, 0, 14], [0, -8, 16]].forEach(([dx, dy, r]) => {
+//    ctx.beginPath(); ctx.arc(x + dx, y + dy, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+//  });
+//}
+//
+//function drawGrassPatch(x, y) {
+//  ctx.fillStyle = 'rgba(40,110,60,0.22)';
+//  ctx.beginPath(); ctx.ellipse(x, y, 90, 60, 0, 0, Math.PI * 2); ctx.fill();
+//}
+//
+//function drawWorldWall(x, y, w, h, type) {
+//  if (x > canvas.width || y > canvas.height || x + w < 0 || y + h < 0) return;
+//  ctx.lineJoin = 'round';
+//
+//  if (type === 'border') {
+//    ctx.fillStyle = '#145250'; ctx.fillRect(x, y, w, h);
+//    ctx.fillStyle = '#1d6f6b'; ctx.fillRect(x + 6, y + 6, Math.max(w - 12, 0), Math.max(h - 12, 0));
+//    return;
+//  }
+//
+//  ctx.fillStyle = 'rgba(10,31,30,0.35)';
+//  ctx.fillRect(x + 8, y + 10, w, h);
+//
+//  if (type === 'building') {
+//    const i = Math.abs(Math.floor((x + camX) / 10 + (y + camY) / 10)) % ROOFS.length;
+//    const [light, dark] = ROOFS[i];
+//    ctx.fillStyle = dark; ctx.fillRect(x, y, w, h);
+//    ctx.fillStyle = light; ctx.fillRect(x + 6, y + 6, w - 12, h - 12);
+//    ctx.strokeStyle = dark; ctx.lineWidth = 4;
+//    ctx.beginPath();
+//    if (w >= h) { ctx.moveTo(x + 6, y + h / 2); ctx.lineTo(x + w - 6, y + h / 2); }
+//    else { ctx.moveTo(x + w / 2, y + 6); ctx.lineTo(x + w / 2, y + h - 6); }
+//    ctx.stroke();
+//    ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.strokeRect(x, y, w, h);
+//  } else if (type === 'crate') {
+//    ctx.fillStyle = '#e0a64a'; ctx.fillRect(x, y, w, h);
+//    ctx.strokeStyle = '#a9741f'; ctx.lineWidth = Math.min(4, w / 8);
+//    ctx.beginPath();
+//    ctx.moveTo(x + 3, y + 3); ctx.lineTo(x + w - 3, y + h - 3);
+//    ctx.moveTo(x + w - 3, y + 3); ctx.lineTo(x + 3, y + h - 3);
+//    ctx.stroke();
+//    ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, h);
+//  }
+//}
+//
+//// Minimap sits under the Exit button; HP bar sits under the minimap.
+//function drawMinimap() {
+//  const short = window.innerHeight < 500;
+//  const size = short ? 90 : (isTouch ? 100 : 130);
+//  const mx = exitRect.left, my = exitRect.bottom + 8;
+//  const s = size / mapInfo.width, mh = mapInfo.height * s;
+//
+//  const hpTop = Math.round(my + mh + 10);
+//  if (hpTop !== lastHpTop) { $('hud-top-left').style.top = hpTop + 'px'; lastHpTop = hpTop; }
+//
+//  ctx.fillStyle = 'rgba(10,31,30,0.85)'; ctx.fillRect(mx, my, size, mh);
+//  ctx.strokeStyle = '#fff6e0'; ctx.lineWidth = 2; ctx.strokeRect(mx, my, size, mh);
+//
+//  mapInfo.walls.forEach(w => {
+//    ctx.fillStyle = w.type === 'building' ? '#ff5a47' : w.type === 'crate' ? '#e0a64a' : '#1d6f6b';
+//    ctx.fillRect(mx + w.x * s, my + w.y * s, Math.max(w.w * s, 1), Math.max(w.h * s, 1));
+//  });
+//
+//  const vid = (viewedPlayer() || {}).id;
+//  latestState.players.forEach(p => {
+//    if (!p.alive) return;
+//    const sp = smoothPos(p);
+//    const me = p.id === vid;
+//    ctx.fillStyle = me ? '#ffc83d' : '#5ce1b9';
+//    ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
+//    ctx.beginPath(); ctx.arc(mx + sp.x * s, my + sp.y * s, me ? 4 : 3, 0, Math.PI * 2);
+//    ctx.fill(); ctx.stroke();
+//  });
+//
+//  ctx.strokeStyle = 'rgba(255,246,224,0.6)'; ctx.lineWidth = 1;
+//  ctx.strokeRect(mx + camX * s, my + camY * s, canvas.width * s, canvas.height * s);
+//}
+//
+///* ---------------------------------------------------------------------
+//   Characters
+//   --------------------------------------------------------------------- */
+//function ell(x, y, rx, ry, color, rot) {
+//  ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, rot || 0, 0, Math.PI * 2); ctx.fill();
+//}
+//function dot(x, y, r, color) {
+//  ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+//}
+//function tri(pts, color) {
+//  ctx.fillStyle = color; ctx.beginPath();
+//  ctx.moveTo(pts[0][0], pts[0][1]); ctx.lineTo(pts[1][0], pts[1][1]); ctx.lineTo(pts[2][0], pts[2][1]);
+//  ctx.closePath(); ctx.fill();
+//}
+//function aimLine(angle, color) {
+//  ctx.save(); ctx.rotate(angle);
+//  ctx.strokeStyle = color; ctx.lineWidth = 3;
+//  ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(34, 0); ctx.stroke();
+//  ctx.restore();
+//}
+//
+//function drawCharacter(x, y, angle, type) {
+//  ctx.save();
+//  ctx.translate(x, y);
+//  ell(0, 20, 18, 7, 'rgba(0,0,0,0.25)');
+//  switch (type) {
+//    case 'bear': drawBeast(angle, { aim: 'rgba(255,80,80,.4)', body: '#7a5233', rx: 17, chest: '#c99b6f', face: '#c99b6f', nose: '#2a1a10', eye: '#000', arms: true, roundEars: true, feet: true }); break;
+//    case 'fox': drawBeast(angle, { aim: 'rgba(255,180,80,.4)', body: '#d96b27', rx: 16, chest: '#f5d6b3', face: '#f5d6b3', nose: '#24150f', eye: '#000', ear: [-10, -14, -8, -28, -1, -18], tail: true }); break;
+//    case 'wolf': drawBeast(angle, { aim: 'rgba(180,200,220,.45)', body: '#65717d', rx: 17, chest: '#c7d0d8', face: '#d7dde2', nose: '#111', eye: '#ffd23a', ear: [-10, -19, -12, -30, -3, -21] }); break;
+//    case 'horse': drawHorse(angle); break;
+//    default: drawPenguin(angle);
+//  }
+//  ctx.restore();
+//}
+//
+//function drawPenguin(a) {
+//  aimLine(a, 'rgba(255,255,255,.4)');
+//  ell(0, 2, 16, 20, '#1c2530'); ell(0, 6, 10, 14, '#f4f6f8');
+//  const flap = Math.sin(a * 2);
+//  ell(-14, 4 + flap, 6, 12, '#1c2530', -0.3); ell(14, 4 - flap, 6, 12, '#1c2530', 0.3);
+//  dot(0, -14, 11, '#1c2530');
+//  ell(Math.cos(a) * 4, -14 + Math.sin(a) * 1.2, 7, 8, '#f4f6f8');
+//  ctx.save(); ctx.translate(0, -14); ctx.rotate(a);
+//  tri([[6, -2], [16, 0], [6, 2]], '#ffa733');
+//  ctx.restore();
+//  dot(-3, -17, 1.6, '#000'); dot(3, -17, 1.6, '#000');
+//  ell(-6, 20, 5, 3, '#ffa733'); ell(6, 20, 5, 3, '#ffa733');
+//}
+//
+//function drawBeast(a, o) {
+//  aimLine(a, o.aim);
+//  if (o.tail) ell(-18, 10, 10, 6, o.body, -0.5);
+//  ell(0, 5, o.rx, 19, o.body); ell(0, 9, 9, 12, o.chest);
+//  if (o.arms) { ell(-15, 6, 6, 11, o.body, -0.2); ell(15, 6, 6, 11, o.body, 0.2); }
+//  if (o.ear) {
+//    const e = o.ear;
+//    tri([[e[0], e[1]], [e[2], e[3]], [e[4], e[5]]], o.body);
+//    tri([[-e[0], e[1]], [-e[2], e[3]], [-e[4], e[5]]], o.body);
+//  }
+//  if (o.roundEars) { [-8, 8].forEach(ex => { dot(ex, -20, 5, o.body); dot(ex, -20, 2.5, '#5c3d26'); }); }
+//  dot(0, -13, 12, o.body);
+//  const fx = Math.cos(a) * 5, fy = Math.sin(a) * 5;
+//  ell(fx, -9 + fy * 0.3, 7, 5, o.face);
+//  dot(fx * 1.6, -9 + fy * 0.5, 2, o.nose);
+//  dot(-4, -16, 1.7, o.eye); dot(4, -16, 1.7, o.eye);
+//  if (o.feet) { ell(-7, 21, 6, 4, '#5c3d26'); ell(7, 21, 6, 4, '#5c3d26'); }
+//}
+//
+//function drawHorse(a) {
+//  aimLine(a, 'rgba(210,160,100,.45)');
+//  ell(0, 6, 18, 17, '#8b5a36'); ell(0, -10, 10, 17, '#8b5a36'); ell(0, -23, 10, 12, '#8b5a36');
+//  tri([[-7, -31], [-10, -41], [-2, -34]], '#8b5a36'); tri([[7, -31], [10, -41], [2, -34]], '#8b5a36');
+//  const fx = Math.cos(a) * 5, fy = Math.sin(a) * 5;
+//  ell(fx, -20 + fy * 0.3, 7, 5, '#b9784a');
+//  dot(fx * 1.5, -20 + fy * 0.5, 2, '#24150f');
+//  dot(-4, -26, 1.7, '#111'); dot(4, -26, 1.7, '#111');
+//  ell(-9, -11, 5, 16, '#3b2417');
+//  ctx.fillStyle = '#704526'; ctx.fillRect(-12, 15, 6, 13); ctx.fillRect(6, 15, 6, 13);
+//}
