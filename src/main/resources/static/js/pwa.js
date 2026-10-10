@@ -23,7 +23,8 @@
   const installBtn = document.getElementById('install-btn');
   const laterBtn = document.getElementById('install-later');
   let deferredPrompt = null;
-  let splashDone = !document.getElementById('splash');
+  // If the splash already finished before this script loaded, do not wait for the event
+  let splashDone = !document.getElementById('splash') || !!window.__splashDone;
   let installing = false;
 
   function maybeShow() {
